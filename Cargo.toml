@@ -4,4 +4,7 @@ name = "burner"
 version = "0.1.0"
 
 [dependencies]
-clap = "2.27.1"
+failure = "0.0.1"
+failure_derive = "0.0.1"
+structopt = "0.1.4"
+structopt-derive = "0.1.4"
