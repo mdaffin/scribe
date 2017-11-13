@@ -1,0 +1,7 @@
+[package]
+authors = ["Michael Daffin <michael@daffin.io>"]
+name = "burner"
+version = "0.1.0"
+
+[dependencies]
+clap = "2.27.1"
