@@ -39,8 +39,11 @@ fn main() {
     let opt = Opt::from_args();
 
     match opt.cmd {
-        Some(Command::List { all }) => println!("{:?}", all),
-
+        Some(Command::List { all }) => {
+            if let Err(err) = list(all) {
+                println!("{}", err);
+            }
+        }
         None => {
             let input = &opt.input.expect("missing input file");
             let output = &opt.output.unwrap_or("out".into());
@@ -50,6 +53,11 @@ fn main() {
         }
     }
 
+}
+
+fn list(all: bool) -> Result<(), Error> {
+    println!("{:?}", all);
+    Ok(())
 }
 
 /// Copies one file to another
