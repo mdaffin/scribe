@@ -6,12 +6,16 @@ extern crate failure;
 extern crate structopt_derive;
 extern crate structopt;
 
+mod disks;
+
 use failure::Error;
 use structopt::StructOpt;
 
 use std::path::Path;
 use std::io::{self, BufReader, BufWriter, Write};
 use std::fs::File;
+
+use disks::Disk;
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "burner",
@@ -56,7 +60,13 @@ fn main() {
 }
 
 fn list(all: bool) -> Result<(), Error> {
-    println!("{:?}", all);
+    for disk in Disk::list()? {
+        let disk = disk?;
+        if all | disk.is_removable() {
+            println!("{}", disk.path().display());
+        }
+    }
+
     Ok(())
 }
 
