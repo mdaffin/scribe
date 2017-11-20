@@ -19,6 +19,22 @@ pub struct Device {
     pub model: String,
 }
 
+#[derive(Debug)]
+pub struct Disk {
+    dev: OsString,
+    device_number: DeviceNumber,
+    removable: bool,
+    device: Option<Device>,
+    size: Size,
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct Size(pub u64);
+
+pub struct DiskIter {
+    inner: fs::ReadDir,
+}
+
 impl FromStr for DeviceNumber {
     type Err = ParseIntError;
 
@@ -32,16 +48,30 @@ impl FromStr for DeviceNumber {
     }
 }
 
-#[derive(Debug)]
-pub struct Disk {
-    dev: OsString,
-    device_number: DeviceNumber,
-    removable: bool,
-    device: Option<Device>,
+impl FromStr for Size {
+    type Err = ParseIntError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Size(s.parse::<u64>()?))
+    }
 }
 
-pub struct DiskIter {
-    inner: fs::ReadDir,
+use std::fmt;
+
+impl fmt::Display for Size {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let size = self.0 * 512;
+        match size {
+            0...1024 => write!(f, "{}", size),
+            1024...1_048_576 => write!(f, "{:.1}KiB", size as f64 / 1024.0),
+            1_048_576...1_073_741_824 => write!(f, "{:.1}MiB", size as f64 / 1_048_576.0),
+            1_073_741_824...1_099_511_627_776 => {
+                write!(f, "{:.1}GiB", size as f64 / 1_073_741_824.0)
+            }
+            _ => write!(f, "{:.1}TiB", self.0),
+
+        }
+    }
 }
 
 fn read_from<T, P>(file_name: P) -> Result<T, failure::Error>
@@ -70,23 +100,20 @@ impl Iterator for DiskIter {
 impl Disk {
     pub fn new(dev: OsString) -> Result<Disk, failure::Error> {
         let path = PathBuf::from("/sys/block").join(dev.clone());
-        let removable = read_from::<u8, _>(path.join("removable"))? == 1;
-        let device_number = read_from(path.join("dev"))?;
-
-        let device = {
-            let device_path = path.join("device");
-            if device_path.exists() {
-                Some(Device { model: read_from(device_path.join("model"))? })
-            } else {
-                None
-            }
-        };
 
         Ok(Disk {
-            dev: dev,
-            device_number,
-            removable,
-            device,
+            dev,
+            device_number: read_from(path.join("dev"))?,
+            removable: read_from::<u8, _>(path.join("removable"))? == 1,
+            device: {
+                let device_path = path.join("device");
+                if device_path.exists() {
+                    Some(Device { model: read_from(device_path.join("model"))? })
+                } else {
+                    None
+                }
+            },
+            size: read_from::<Size, _>(path.join("size"))?,
         })
     }
 
@@ -108,6 +135,10 @@ impl Disk {
 
     pub fn device(&self) -> Option<Device> {
         self.device.clone()
+    }
+
+    pub fn size(&self) -> Size {
+        self.size
     }
 }
 

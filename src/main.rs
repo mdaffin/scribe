@@ -67,8 +67,9 @@ fn list(all: bool) -> Result<(), Error> {
         }
         if all | disk.is_removable() {
             println!(
-                "{}\t{}",
+                "{}\t{}\t{}",
                 disk.path().display(),
+                disk.size(),
                 disk.device().map(|device| device.model).unwrap_or(
                     "".into(),
                 )
