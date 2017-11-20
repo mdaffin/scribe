@@ -1,4 +1,4 @@
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub enum Major {
     Unnamed, // 0        Unnamed devices (e.g. non-device mounts)
     RamDisk, //   1 block    RAM disk

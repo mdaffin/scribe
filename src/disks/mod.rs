@@ -1,4 +1,5 @@
 use std::path::{PathBuf, Path};
+use std::ffi::OsString;
 use std::io::{self, Read};
 use std::fs::{self, File};
 use failure;
@@ -8,10 +9,14 @@ use std::num::ParseIntError;
 mod major;
 pub use self::major::Major;
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct DeviceNumber {
     pub major: Major,
     pub minor: u16,
+}
+#[derive(Debug, Clone)]
+pub struct Device {
+    pub model: String,
 }
 
 impl FromStr for DeviceNumber {
@@ -29,9 +34,10 @@ impl FromStr for DeviceNumber {
 
 #[derive(Debug)]
 pub struct Disk {
-    path: PathBuf,
+    dev: OsString,
     device_number: DeviceNumber,
     removable: bool,
+    device: Option<Device>,
 }
 
 pub struct DiskIter {
@@ -54,7 +60,7 @@ impl Iterator for DiskIter {
 
     fn next(&mut self) -> Option<Result<Disk, failure::Error>> {
         match self.inner.next() {
-            Some(Ok(dir)) => Some(Disk::new(dir.path())),
+            Some(Ok(dir)) => Some(Disk::new(dir.path().file_name().unwrap().into())),
             Some(Err(err)) => Some(Err(err.into())),
             None => None,
         }
@@ -62,13 +68,25 @@ impl Iterator for DiskIter {
 }
 
 impl Disk {
-    pub fn new(path: PathBuf) -> Result<Disk, failure::Error> {
+    pub fn new(dev: OsString) -> Result<Disk, failure::Error> {
+        let path = PathBuf::from("/sys/block").join(dev.clone());
         let removable = read_from::<u8, _>(path.join("removable"))? == 1;
         let device_number = read_from(path.join("dev"))?;
+
+        let device = {
+            let device_path = path.join("device");
+            if device_path.exists() {
+                Some(Device { model: read_from(device_path.join("model"))? })
+            } else {
+                None
+            }
+        };
+
         Ok(Disk {
-            path,
+            dev: dev,
             device_number,
             removable,
+            device,
         })
     }
 
@@ -76,12 +94,20 @@ impl Disk {
         Ok(DiskIter { inner: fs::read_dir("/sys/block")? })
     }
 
+    pub fn device_number(&self) -> DeviceNumber {
+        self.device_number
+    }
+
     pub fn is_removable(&self) -> bool {
         self.removable
     }
 
-    pub fn path<'a>(&'a self) -> &'a Path {
-        &self.path
+    pub fn path(&self) -> PathBuf {
+        PathBuf::from("/dev").join(self.dev.clone())
+    }
+
+    pub fn device(&self) -> Option<Device> {
+        self.device.clone()
     }
 }
 

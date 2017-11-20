@@ -15,7 +15,7 @@ use std::path::Path;
 use std::io::{self, BufReader, BufWriter, Write};
 use std::fs::File;
 
-use disks::Disk;
+use disks::{Disk, Major};
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "burner",
@@ -62,8 +62,17 @@ fn main() {
 fn list(all: bool) -> Result<(), Error> {
     for disk in Disk::list()? {
         let disk = disk?;
+        if disk.device_number().major != Major::ScsiDisk {
+            continue;
+        }
         if all | disk.is_removable() {
-            println!("{}", disk.path().display());
+            println!(
+                "{}\t{}",
+                disk.path().display(),
+                disk.device().map(|device| device.model).unwrap_or(
+                    "".into(),
+                )
+            );
         }
     }
 
