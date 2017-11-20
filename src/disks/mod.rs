@@ -2,6 +2,8 @@ use std::path::PathBuf;
 use std::io::{self, Read};
 use std::fs::{self, DirEntry, File};
 
+mod major;
+
 #[derive(Debug)]
 pub struct Disk {
     dir: DirEntry,
@@ -20,7 +22,6 @@ macro_rules! read_byte {
                 Err(err) => return Some(Err(err)),
                 Ok(v) => v,
             };
-            let path = match
             match file.bytes()
                 .next() { 
                 Some(Ok(c)) => c,
@@ -39,7 +40,11 @@ impl Iterator for DiskIter {
         match self.inner.next() {
             Some(Ok(path)) => {
                 let removable = read_byte!(path.path().join("removable")) == '1' as u8;
-                Some(Ok(Disk { path, removable }))
+                Some(Ok(Disk {
+                    dir: path,
+                    path: PathBuf::new(),
+                    removable: removable,
+                }))
             }
             Some(Err(err)) => Some(Err(err)),
             None => None,
@@ -57,7 +62,7 @@ impl Disk {
     }
 
     pub fn path(&self) -> PathBuf {
-        self.path.path()
+        self.dir.path()
     }
 }
 
