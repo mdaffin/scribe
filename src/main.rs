@@ -1,4 +1,5 @@
 extern crate failure;
+extern crate termion;
 //#[macro_use]
 //extern crate failure_derive;
 
@@ -7,13 +8,10 @@ extern crate structopt_derive;
 extern crate structopt;
 
 mod disks;
+mod cmd_burn;
 
 use failure::Error;
 use structopt::StructOpt;
-
-use std::path::Path;
-use std::io::{self, BufReader, BufWriter, Write};
-use std::fs::File;
 
 use disks::{Disk, Major};
 
@@ -44,22 +42,20 @@ fn main() {
 
     match opt.cmd {
         Some(Command::List { all }) => {
-            if let Err(err) = list(all) {
+            if let Err(err) = cmd_list(all) {
                 println!("{}", err);
             }
         }
         None => {
-            let input = &opt.input.expect("missing input file");
-            let output = &opt.output.unwrap_or("out".into());
-            if let Err(err) = copy(input, output) {
-                println!("error copying from '{}' to '{}': {}", input, output, err);
+            if let Err(err) = cmd_burn::run(&opt.input.expect("missing input file"), opt.output) {
+                println!("Burn failed: {}", err);
             }
         }
     }
 
 }
 
-fn list(all: bool) -> Result<(), Error> {
+fn cmd_list(all: bool) -> Result<(), Error> {
     for disk in Disk::list()? {
         let disk = disk?;
         if disk.device_number().major != Major::ScsiDisk {
@@ -76,21 +72,6 @@ fn list(all: bool) -> Result<(), Error> {
             );
         }
     }
-
-    Ok(())
-}
-
-/// Copies one file to another
-fn copy<A, B>(input: A, output: B) -> Result<(), Error>
-where
-    A: AsRef<Path>,
-    B: AsRef<Path>,
-{
-    let mut buf_reader = BufReader::new(File::open(input)?);
-    let mut buf_writer = BufWriter::new(File::create(output)?);
-
-    io::copy(&mut buf_reader, &mut buf_writer)?;
-    buf_writer.flush()?;
 
     Ok(())
 }
