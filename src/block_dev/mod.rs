@@ -1,12 +1,15 @@
+use std::fs::read_to_string;
 use std::path::{Path, PathBuf};
 use std::ffi::OsString;
-use std::io::{self, Read};
-use std::fs::{self, File};
+use std::io;
+use std::fs;
 use failure;
 use std::str::FromStr;
 use std::num::ParseIntError;
 
 mod major;
+mod util;
+//use self::util::read_from;
 pub use self::major::Major;
 
 #[derive(Debug, Copy, Clone)]
@@ -16,7 +19,8 @@ pub struct DeviceNumber {
 }
 #[derive(Debug, Clone)]
 pub struct Device {
-    pub model: String,
+    pub model: Option<String>,
+    pub vendor: Option<String>,
 }
 
 #[derive(Debug)]
@@ -73,54 +77,62 @@ impl fmt::Display for Size {
     }
 }
 
-fn read_from<T, P>(file_name: P) -> Result<T, failure::Error>
-where
-    T: FromStr,
-    <T as FromStr>::Err: failure::Fail,
-    P: AsRef<Path>,
-{
-    let mut buffer = String::new();
-    File::open(file_name)?.read_to_string(&mut buffer)?;
-    Ok(buffer.trim().parse()?)
-}
-
 impl Iterator for BlockDeviceIter {
-    type Item = Result<BlockDevice, failure::Error>;
+    type Item = Result<BlockDevice, io::Error>;
 
-    fn next(&mut self) -> Option<Result<BlockDevice, failure::Error>> {
+    fn next(&mut self) -> Option<Result<BlockDevice, io::Error>> {
         match self.inner.next() {
-            Some(Ok(dir)) => Some(BlockDevice::new(dir.path().file_name().unwrap().into())),
+            Some(Ok(dir)) => Some(BlockDevice::new(
+                dir.path()
+                    .file_name()
+                    .expect(&format!("missing file_name for '{}'", dir.path().display()))
+                    .into(),
+            )),
             Some(Err(err)) => Some(Err(err.into())),
             None => None,
         }
     }
 }
 
+impl Device {
+    pub fn new<P>(device_path: P) -> Result<Device, failure::Error>
+    where
+        P: AsRef<Path>,
+    {
+        Ok(Device {
+            model: read_to_string(device_path.as_ref().join("model"))
+                .map(|v| Some(v))
+                .unwrap(),
+            vendor: read_to_string(device_path.as_ref().join("vendor"))
+                .map(|v| Some(v))
+                .unwrap(),
+        })
+    }
+}
+
 impl BlockDevice {
-    pub fn new(dev: OsString) -> Result<BlockDevice, failure::Error> {
+    pub fn new(dev: OsString) -> Result<BlockDevice, io::Error> {
         let path = PathBuf::from("/sys/block").join(dev.clone());
 
         Ok(BlockDevice {
             dev,
-            device_number: read_from(path.join("dev"))?,
-            removable: read_from::<u8, _>(path.join("removable"))? == 1,
+            device_number: read_to_string(path.join("dev"))?
+                .parse()
+                .expect("failed to parse dev"),
+            removable: read_to_string(path.join("removable"))?
+                .parse::<u8>()
+                .expect("failed to parse removable") == 1,
             device: {
                 let device_path = path.join("device");
                 if device_path.exists() {
-                    Some(Device {
-                        model: read_from(device_path.join("model"))?,
-                    })
+                    Some(Device::new(device_path).unwrap())
                 } else {
                     None
                 }
             },
-            size: read_from::<Size, _>(path.join("size"))?,
-        })
-    }
-
-    pub fn list() -> io::Result<BlockDeviceIter> {
-        Ok(BlockDeviceIter {
-            inner: fs::read_dir("/sys/block")?,
+            size: read_to_string(path.join("size"))?
+                .parse::<Size>()
+                .expect("failed to parse size"),
         })
     }
 
@@ -145,14 +157,8 @@ impl BlockDevice {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn list_disks() {
-        for disk in BlockDevice::list().unwrap() {
-            println!("{:?}", disk);
-        }
-    }
+pub fn block_devices() -> io::Result<BlockDeviceIter> {
+    Ok(BlockDeviceIter {
+        inner: fs::read_dir("/sys/block")?,
+    })
 }

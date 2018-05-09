@@ -8,9 +8,9 @@ use failure::Error;
 use std::path::PathBuf;
 use structopt::StructOpt;
 
-mod disks;
+mod block_dev;
 
-use disks::{BlockDevice, Major};
+use block_dev::{block_devices, Major};
 
 impl Write {
     pub fn run(self) -> Result<(), Error> {
@@ -28,7 +28,7 @@ impl Backup {
 
 impl List {
     pub fn run(self) -> Result<(), Error> {
-        for disk in BlockDevice::list()? {
+        for disk in block_devices()? {
             let disk = disk?;
             if disk.device_number().major != Major::ScsiDisk {
                 continue;
@@ -39,8 +39,8 @@ impl List {
                     disk.path().display(),
                     disk.size(),
                     disk.device()
-                        .map(|device| device.model,)
-                        .unwrap_or("".into(),)
+                        .map(|device| device.model.unwrap_or("".into()))
+                        .unwrap_or("".into())
                 );
             }
         }
