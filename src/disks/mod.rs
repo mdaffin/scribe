@@ -1,4 +1,4 @@
-use std::path::{PathBuf, Path};
+use std::path::{Path, PathBuf};
 use std::ffi::OsString;
 use std::io::{self, Read};
 use std::fs::{self, File};
@@ -69,7 +69,6 @@ impl fmt::Display for Size {
                 write!(f, "{:.1}GiB", size as f64 / 1_073_741_824.0)
             }
             _ => write!(f, "{:.1}TiB", self.0),
-
         }
     }
 }
@@ -108,7 +107,9 @@ impl Disk {
             device: {
                 let device_path = path.join("device");
                 if device_path.exists() {
-                    Some(Device { model: read_from(device_path.join("model"))? })
+                    Some(Device {
+                        model: read_from(device_path.join("model"))?,
+                    })
                 } else {
                     None
                 }
@@ -118,7 +119,9 @@ impl Disk {
     }
 
     pub fn list() -> io::Result<DiskIter> {
-        Ok(DiskIter { inner: fs::read_dir("/sys/block")? })
+        Ok(DiskIter {
+            inner: fs::read_dir("/sys/block")?,
+        })
     }
 
     pub fn device_number(&self) -> DeviceNumber {

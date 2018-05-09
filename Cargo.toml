@@ -4,8 +4,9 @@ name = "burner"
 version = "0.1.0"
 
 [dependencies]
-failure = "0.1.0"
-failure_derive = "0.0.1"
-structopt = "0.1.4"
-structopt-derive = "0.1.4"
+failure = "0.1.1"
+failure_derive = "0.1.1"
+structopt = "0.2.8"
+#structopt-derive = "0.1.4"
+human-panic = "0.4.0"
 termion = "1.5.1"

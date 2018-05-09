@@ -1,25 +1,25 @@
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum Major {
-    Unnamed, // 0        Unnamed devices (e.g. non-device mounts)
-    RamDisk, //   1 block    RAM disk
-    FloppyDisk, //   2 block    Floppy disks
-    Ide, //   3 block    First MFM, RLL and IDE hard disk/CD-ROM interface
-    Dynamic, //   4 block    Aliases for dynamically allocated major devices to be used
-    Loopback, //   7 block    Loopback devices
-    ScsiDisk, //   8 block    SCSI disk devices (0-15)
+    Unnamed,      // 0        Unnamed devices (e.g. non-device mounts)
+    RamDisk,      //   1 block    RAM disk
+    FloppyDisk,   //   2 block    Floppy disks
+    Ide,          //   3 block    First MFM, RLL and IDE hard disk/CD-ROM interface
+    Dynamic,      //   4 block    Aliases for dynamically allocated major devices to be used
+    Loopback,     //   7 block    Loopback devices
+    ScsiDisk,     //   8 block    SCSI disk devices (0-15)
     RaidMetaDisk, //   9 block    Metadisk (RAID) devices
-    ScsiCdRom, //  11 block    SCSI CD-ROM devices
+    ScsiCdRom,    //  11 block    SCSI CD-ROM devices
     //  12 block
     XTDisk, //  13 block    Previously used for the XT disk (/dev/xdN)
     //  14 block
-    SonyCdRom, //  15 block    Sony CDU-31A/CDU-33A CD-ROM
-    GoldStarCdRom, //  16 block    GoldStar CD-ROM
-    OpticsStorageCdRom, //  17 block    Optics Storage CD-ROM
-    SanyoCdRom, //  18 block    Sanyo CD-ROM
+    SonyCdRom,            //  15 block    Sony CDU-31A/CDU-33A CD-ROM
+    GoldStarCdRom,        //  16 block    GoldStar CD-ROM
+    OpticsStorageCdRom,   //  17 block    Optics Storage CD-ROM
+    SanyoCdRom,           //  18 block    Sanyo CD-ROM
     DoubleCompressedDisk, //  19 block    "Double" compressed disk
-    HitachiCdRom, //  20 block    Hitachi CD-ROM (under development)
-    AcornMfmDrive, //  21 block    Acorn MFM hard drive interface
-    SecondsIde, //  22 block    Second IDE hard disk/CD-ROM interface
+    HitachiCdRom,         //  20 block    Hitachi CD-ROM (under development)
+    AcornMfmDrive,        //  21 block    Acorn MFM hard drive interface
+    SecondsIde,           //  22 block    Second IDE hard disk/CD-ROM interface
     //  23 block    Mitsumi proprietary CD-ROM
     //  24 block    Sony CDU-535 CD-ROM
     //  25 block    First Matsushita (Panasonic/SoundBlaster) CD-ROM

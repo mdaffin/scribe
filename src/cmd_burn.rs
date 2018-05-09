@@ -46,14 +46,14 @@ fn get_disk_from_user() -> Result<PathBuf, Error> {
         .collect::<Result<Vec<_>, Error>>()?;
     for (i, disk) in disks.iter().enumerate() {
         println!(
-                    "{index})\t{path}\t{size}\t{model}",
-                    index = i,
-                    path = disk.path().display(),
-                    size = disk.size(),
-                    model = disk.device().map(|device| device.model).unwrap_or(
-                        "".into(),
-                    ),
-                );
+            "{index})\t{path}\t{size}\t{model}",
+            index = i,
+            path = disk.path().display(),
+            size = disk.size(),
+            model = disk.device()
+                .map(|device| device.model,)
+                .unwrap_or("".into(),),
+        );
     }
     print!("Select a disk: ");
     io::stdout().flush()?;
