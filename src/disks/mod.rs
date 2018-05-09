@@ -20,7 +20,7 @@ pub struct Device {
 }
 
 #[derive(Debug)]
-pub struct Disk {
+pub struct BlockDevice {
     dev: OsString,
     device_number: DeviceNumber,
     removable: bool,
@@ -31,7 +31,7 @@ pub struct Disk {
 #[derive(Debug, Copy, Clone)]
 pub struct Size(pub u64);
 
-pub struct DiskIter {
+pub struct BlockDeviceIter {
     inner: fs::ReadDir,
 }
 
@@ -84,23 +84,23 @@ where
     Ok(buffer.trim().parse()?)
 }
 
-impl Iterator for DiskIter {
-    type Item = Result<Disk, failure::Error>;
+impl Iterator for BlockDeviceIter {
+    type Item = Result<BlockDevice, failure::Error>;
 
-    fn next(&mut self) -> Option<Result<Disk, failure::Error>> {
+    fn next(&mut self) -> Option<Result<BlockDevice, failure::Error>> {
         match self.inner.next() {
-            Some(Ok(dir)) => Some(Disk::new(dir.path().file_name().unwrap().into())),
+            Some(Ok(dir)) => Some(BlockDevice::new(dir.path().file_name().unwrap().into())),
             Some(Err(err)) => Some(Err(err.into())),
             None => None,
         }
     }
 }
 
-impl Disk {
-    pub fn new(dev: OsString) -> Result<Disk, failure::Error> {
+impl BlockDevice {
+    pub fn new(dev: OsString) -> Result<BlockDevice, failure::Error> {
         let path = PathBuf::from("/sys/block").join(dev.clone());
 
-        Ok(Disk {
+        Ok(BlockDevice {
             dev,
             device_number: read_from(path.join("dev"))?,
             removable: read_from::<u8, _>(path.join("removable"))? == 1,
@@ -118,8 +118,8 @@ impl Disk {
         })
     }
 
-    pub fn list() -> io::Result<DiskIter> {
-        Ok(DiskIter {
+    pub fn list() -> io::Result<BlockDeviceIter> {
+        Ok(BlockDeviceIter {
             inner: fs::read_dir("/sys/block")?,
         })
     }
@@ -151,7 +151,7 @@ mod tests {
 
     #[test]
     fn list_disks() {
-        for disk in Disk::list().unwrap() {
+        for disk in BlockDevice::list().unwrap() {
             println!("{:?}", disk);
         }
     }

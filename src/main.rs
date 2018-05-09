@@ -10,7 +10,7 @@ use structopt::StructOpt;
 
 mod disks;
 
-use disks::{Disk, Major};
+use disks::{BlockDevice, Major};
 
 impl Write {
     pub fn run(self) -> Result<(), Error> {
@@ -28,7 +28,7 @@ impl Backup {
 
 impl List {
     pub fn run(self) -> Result<(), Error> {
-        for disk in Disk::list()? {
+        for disk in BlockDevice::list()? {
             let disk = disk?;
             if disk.device_number().major != Major::ScsiDisk {
                 continue;
