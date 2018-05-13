@@ -1,34 +1,23 @@
-use std::fs::read_to_string;
-use std::path::{Path, PathBuf};
+#[macro_use]
+mod util;
+
+use std::path::PathBuf;
 use std::ffi::OsString;
 use std::io;
 use std::fs;
 use failure;
 use std::str::FromStr;
 use std::num::ParseIntError;
+use std::fmt;
 
-mod major;
-mod util;
-//use self::util::read_from;
-pub use self::major::Major;
-
-#[derive(Debug, Copy, Clone)]
-pub struct DeviceNumber {
-    pub major: Major,
-    pub minor: u16,
-}
-#[derive(Debug, Clone)]
-pub struct Device {
-    pub model: Option<String>,
-    pub vendor: Option<String>,
-}
+use std::fs::read_to_string;
+use self::util::{read_to, IntBool};
 
 #[derive(Debug)]
 pub struct BlockDevice {
-    dev: OsString,
-    device_number: DeviceNumber,
-    removable: bool,
-    device: Option<Device>,
+    dev_name: OsString,
+    label: String,
+    external: bool,
     size: Size,
 }
 
@@ -39,41 +28,46 @@ pub struct BlockDeviceIter {
     inner: fs::ReadDir,
 }
 
-impl FromStr for DeviceNumber {
-    type Err = ParseIntError;
+pub fn block_devices() -> io::Result<BlockDeviceIter> {
+    Ok(BlockDeviceIter {
+        inner: fs::read_dir("/sys/block")?,
+    })
+}
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let coords: Vec<&str> = s.trim().split(":").collect();
+impl BlockDevice {
+    pub fn new(dev_name: OsString) -> Result<BlockDevice, io::Error> {
+        let dev_path = PathBuf::from("/sys/block").join(dev_name.clone());
+        let mut label_parts = Vec::new();
 
-        Ok(DeviceNumber {
-            major: coords[0].parse::<u32>()?.into(),
-            minor: coords[1].parse::<u16>()?,
+        let vendor = if_exists!(read_to_string(dev_path.join("device/vendor")))?;
+        let model = if_exists!(read_to_string(dev_path.join("device/model")))?;
+
+        if let Some(vendor) = vendor {
+            label_parts.push(vendor.trim().to_string())
+        }
+
+        if let Some(model) = model {
+            label_parts.push(model.trim().to_string())
+        }
+
+        Ok(BlockDevice {
+            dev_name,
+            label: label_parts.join(" "),
+            external: true,
+            size: read_to(dev_path.join("size"))?,
         })
     }
-}
 
-impl FromStr for Size {
-    type Err = ParseIntError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(Size(s.parse::<u64>()?))
+    pub fn external(&self) -> bool {
+        self.external
     }
-}
 
-use std::fmt;
+    pub fn dev_file(&self) -> PathBuf {
+        PathBuf::from("/dev").join(self.dev_name.clone())
+    }
 
-impl fmt::Display for Size {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let size = self.0 * 512;
-        match size {
-            0...1024 => write!(f, "{}", size),
-            1024...1_048_576 => write!(f, "{:.1}KiB", size as f64 / 1024.0),
-            1_048_576...1_073_741_824 => write!(f, "{:.1}MiB", size as f64 / 1_048_576.0),
-            1_073_741_824...1_099_511_627_776 => {
-                write!(f, "{:.1}GiB", size as f64 / 1_073_741_824.0)
-            }
-            _ => write!(f, "{:.1}TiB", self.0),
-        }
+    pub fn size(&self) -> Size {
+        self.size
     }
 }
 
@@ -94,71 +88,25 @@ impl Iterator for BlockDeviceIter {
     }
 }
 
-impl Device {
-    pub fn new<P>(device_path: P) -> Result<Device, failure::Error>
-    where
-        P: AsRef<Path>,
-    {
-        Ok(Device {
-            model: read_to_string(device_path.as_ref().join("model"))
-                .map(|v| Some(v))
-                .unwrap(),
-            vendor: read_to_string(device_path.as_ref().join("vendor"))
-                .map(|v| Some(v))
-                .unwrap(),
-        })
+impl FromStr for Size {
+    type Err = ParseIntError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Size(s.parse::<u64>()?))
     }
 }
 
-impl BlockDevice {
-    pub fn new(dev: OsString) -> Result<BlockDevice, io::Error> {
-        let path = PathBuf::from("/sys/block").join(dev.clone());
-
-        Ok(BlockDevice {
-            dev,
-            device_number: read_to_string(path.join("dev"))?
-                .parse()
-                .expect("failed to parse dev"),
-            removable: read_to_string(path.join("removable"))?
-                .parse::<u8>()
-                .expect("failed to parse removable") == 1,
-            device: {
-                let device_path = path.join("device");
-                if device_path.exists() {
-                    Some(Device::new(device_path).unwrap())
-                } else {
-                    None
-                }
-            },
-            size: read_to_string(path.join("size"))?
-                .parse::<Size>()
-                .expect("failed to parse size"),
-        })
+impl fmt::Display for Size {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let size = self.0 * 512;
+        match size {
+            0...1024 => write!(f, "{}", size),
+            1024...1_048_576 => write!(f, "{:.1}KiB", size as f64 / 1024.0),
+            1_048_576...1_073_741_824 => write!(f, "{:.1}MiB", size as f64 / 1_048_576.0),
+            1_073_741_824...1_099_511_627_776 => {
+                write!(f, "{:.1}GiB", size as f64 / 1_073_741_824.0)
+            }
+            _ => write!(f, "{:.1}TiB", self.0),
+        }
     }
-
-    pub fn device_number(&self) -> DeviceNumber {
-        self.device_number
-    }
-
-    pub fn is_removable(&self) -> bool {
-        self.removable
-    }
-
-    pub fn path(&self) -> PathBuf {
-        PathBuf::from("/dev").join(self.dev.clone())
-    }
-
-    pub fn device(&self) -> Option<Device> {
-        self.device.clone()
-    }
-
-    pub fn size(&self) -> Size {
-        self.size
-    }
-}
-
-pub fn block_devices() -> io::Result<BlockDeviceIter> {
-    Ok(BlockDeviceIter {
-        inner: fs::read_dir("/sys/block")?,
-    })
 }

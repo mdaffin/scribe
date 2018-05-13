@@ -147,7 +147,7 @@ pub enum Major {
     // 257 block    SSFDC Flash Translation Layer filesystem
     // 258 block    ROM/Flash read-only translation layer
     // 259 block    Block Extended Major
-    NotSupported,
+    Other(u32),
 }
 
 impl From<u32> for Major {
@@ -171,7 +171,7 @@ impl From<u32> for Major {
             20 => Major::HitachiCdRom,
             21 => Major::AcornMfmDrive,
             22 => Major::SecondsIde,
-            _ => Major::NotSupported,
+            v => Major::Other(v),
         }
     }
 }
