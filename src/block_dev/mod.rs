@@ -75,15 +75,24 @@ impl Iterator for BlockDeviceIter {
     type Item = Result<BlockDevice, io::Error>;
 
     fn next(&mut self) -> Option<Result<BlockDevice, io::Error>> {
-        match self.inner.next() {
-            Some(Ok(dir)) => Some(BlockDevice::new(
-                dir.path()
-                    .file_name()
-                    .expect(&format!("missing file_name for '{}'", dir.path().display()))
-                    .into(),
-            )),
-            Some(Err(err)) => Some(Err(err.into())),
-            None => None,
+        loop {
+            return match self.inner.next() {
+                Some(Ok(dir)) => {
+                    // Loopback devices do not have a devices directory, but all other physical
+                    // devices that I could find do so this seems to be a way to filter them out.
+                    if !dir.path().join("device").exists() {
+                        continue;
+                    };
+                    Some(BlockDevice::new(
+                        dir.path()
+                            .file_name()
+                            .expect(&format!("missing file_name for '{}'", dir.path().display()))
+                            .into(),
+                    ))
+                }
+                Some(Err(err)) => Some(Err(err.into())),
+                None => None,
+            };
         }
     }
 }
