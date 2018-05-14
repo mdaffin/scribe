@@ -1,9 +1,9 @@
-use std::io;
+use std::fmt;
+use std::fmt::{Debug, Display};
 use std::fs::read_to_string;
+use std::io;
 use std::path::Path;
 use std::str::FromStr;
-use std::fmt::{Debug, Display};
-use std::fmt;
 
 /// A wrapper around a bool to allow parsing from strings of `1` or `0`.
 ///
@@ -24,11 +24,13 @@ pub struct ParseIntBoolError {
 /// Converts a Result<T> to a Result<Option<T>> where Ok(None) is returned if the error was
 /// std::io::ErrorKind::NotFound
 macro_rules! if_exists {
-    ($x:expr) => (match $x {
-        Err(ref e) if e.kind() == io::ErrorKind::NotFound => Ok(None),
-        Ok(c) => Ok(Some(c)),
-        Err(e) => Err(e),
-    })
+    ($x:expr) => {
+        match $x {
+            Err(ref e) if e.kind() == io::ErrorKind::NotFound => Ok(None),
+            Ok(c) => Ok(Some(c)),
+            Err(e) => Err(e),
+        }
+    };
 }
 
 /// Reads the given file and parses it into type T.

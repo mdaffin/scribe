@@ -1,16 +1,16 @@
 #[macro_use]
 mod util;
 
-use std::path::PathBuf;
 use std::ffi::OsString;
-use std::io;
-use std::fs;
-use std::str::FromStr;
-use std::num::ParseIntError;
 use std::fmt;
+use std::fs;
+use std::io;
+use std::num::ParseIntError;
+use std::path::PathBuf;
+use std::str::FromStr;
 
-use std::fs::read_to_string;
 use self::util::read_to;
+use std::fs::read_to_string;
 
 #[derive(Debug)]
 pub struct BlockDevice {
@@ -49,10 +49,14 @@ impl BlockDevice {
             label_parts.push(model.trim().to_string())
         }
 
+        let external = if_exists!(read_to_string(dev_path.join("removable")))?
+            .map(|val| val.trim() == "1")
+            .unwrap_or(false);
+
         Ok(BlockDevice {
             dev_name,
             label: label_parts.join(" "),
-            external: true,
+            external: external,
             size: read_to(dev_path.join("size"))?,
         })
     }
