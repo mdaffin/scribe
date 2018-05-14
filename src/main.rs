@@ -1,7 +1,7 @@
 extern crate failure;
-//#[macro_use]
-extern crate human_panic;
 #[macro_use]
+extern crate human_panic;
+//#[macro_use]
 extern crate log;
 extern crate simplelog;
 #[macro_use]
@@ -34,29 +34,22 @@ impl List {
     pub fn run(self) -> Result<(), Error> {
         for disk in block_devices()? {
             let disk = disk?;
-            println!("{:?}", disk);
-            //if disk.device_number().major != Major::ScsiDisk {
-            //    continue;
-            //}
-            /*if self.show_all || disk.is_removable() {
-            println!(
-                "{}\t{}\t{}",
-                disk.path().display(),
-                disk.size(),
-                disk.device()
-                    .map(|device| device.model.unwrap_or("".into()))
-                    .unwrap_or("".into())
-            );
-            }*/        }
-
+            if self.show_all || disk.external() {
+                println!(
+                    "{}\t{}\t{}",
+                    disk.dev_file().display(),
+                    disk.size(),
+                    disk.label(),
+                );
+            }
+        }
         Ok(())
     }
 }
 
 fn main() {
     TermLogger::init(LevelFilter::Debug, Config::default()).unwrap();
-    info!("Hello world");
-    //setup_panic!();
+    setup_panic!();
     if let Err(err) = match Options::from_args() {
         Options::Write(c) => c.run(),
         Options::Backup(c) => c.run(),

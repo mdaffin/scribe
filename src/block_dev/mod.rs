@@ -5,13 +5,12 @@ use std::path::PathBuf;
 use std::ffi::OsString;
 use std::io;
 use std::fs;
-use failure;
 use std::str::FromStr;
 use std::num::ParseIntError;
 use std::fmt;
 
 use std::fs::read_to_string;
-use self::util::{read_to, IntBool};
+use self::util::read_to;
 
 #[derive(Debug)]
 pub struct BlockDevice {
@@ -56,6 +55,10 @@ impl BlockDevice {
             external: true,
             size: read_to(dev_path.join("size"))?,
         })
+    }
+
+    pub fn label<'a>(&'a self) -> &'a str {
+        &self.label
     }
 
     pub fn external(&self) -> bool {
