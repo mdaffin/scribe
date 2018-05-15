@@ -1,16 +1,12 @@
-#[macro_use]
-mod util;
-
 use std::ffi::OsString;
+use std::fmt::Debug;
 use std::fmt;
-use std::fs;
+use std::fs::{self, read_to_string};
 use std::io;
 use std::num::ParseIntError;
+use std::path::Path;
 use std::path::PathBuf;
 use std::str::FromStr;
-
-use self::util::read_to;
-use std::fs::read_to_string;
 
 #[derive(Debug)]
 pub struct BlockDevice {
@@ -31,6 +27,18 @@ pub fn block_devices() -> io::Result<BlockDeviceIter> {
     Ok(BlockDeviceIter {
         inner: fs::read_dir("/sys/block")?,
     })
+}
+
+/// Converts a Result<T> to a Result<Option<T>> where Ok(None) is returned if the error was
+/// std::io::ErrorKind::NotFound
+macro_rules! if_exists {
+    ($x:expr) => {
+        match $x {
+            Err(ref e) if e.kind() == io::ErrorKind::NotFound => Ok(None),
+            Ok(c) => Ok(Some(c)),
+            Err(e) => Err(e),
+        }
+    };
 }
 
 impl BlockDevice {
@@ -136,5 +144,21 @@ impl fmt::Display for Size {
             }
             _ => write!(f, "{:.1}TiB", self.0),
         }
+    }
+}
+
+/// Reads the given file and parses it into type T.
+pub fn read_to<P, T>(file_name: P) -> Result<T, io::Error>
+where
+    P: AsRef<Path>,
+    <T as FromStr>::Err: Debug,
+    T: FromStr + Debug,
+{
+    match read_to_string(file_name.as_ref()) {
+        Ok(contents) => Ok(contents.trim().parse().expect(&format!(
+            "could not parse contents of {}",
+            file_name.as_ref().display()
+        ))),
+        Err(e) => Err(e),
     }
 }
