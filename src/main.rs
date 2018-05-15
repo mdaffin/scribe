@@ -1,14 +1,14 @@
 extern crate failure;
 #[macro_use]
 extern crate human_panic;
-#[macro_use]
+//#[macro_use]
 extern crate log;
 extern crate simplelog;
 #[macro_use]
 extern crate structopt;
 
-use failure::Error;
 use simplelog::{Config, LevelFilter, TermLogger};
+use failure::Error;
 use std::path::PathBuf;
 use structopt::StructOpt;
 
@@ -35,13 +35,7 @@ impl List {
         for disk in block_devices()? {
             let disk = disk?;
             if self.show_all || disk.external() {
-                println!(
-                    "{}\t{}\t{}\t{}",
-                    disk.dev_file().display(),
-                    if disk.external() { " " } else { "*" },
-                    disk.size(),
-                    disk.label(),
-                );
+                println!("{}", disk);
             }
         }
         Ok(())
@@ -61,8 +55,7 @@ fn main() {
 }
 
 #[derive(StructOpt, Debug)]
-#[structopt(name = "scribe",
-            about = "An easy to use image writer for writing raspberry pi images to SD Cards or ISOs to USB drives.")]
+#[structopt(name = "scribe", about = "An easy to use image writer for writing raspberry pi images to SD Cards or ISOs to USB drives.")]
 enum Options {
     /// Writes an OS image to a device file
     #[structopt(name = "write")]

@@ -112,6 +112,18 @@ impl FromStr for Size {
     }
 }
 
+impl fmt::Display for BlockDevice {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{}\t{}\t{}",
+            self.dev_file().display(),
+            self.size(),
+            self.label()
+        )
+    }
+}
+
 impl fmt::Display for Size {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let size = self.0 * 512;
