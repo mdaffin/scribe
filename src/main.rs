@@ -1,36 +1,47 @@
+#[macro_use]
 extern crate failure;
 #[macro_use]
 extern crate human_panic;
+#[macro_use]
+extern crate structopt;
 //#[macro_use]
 extern crate log;
 extern crate simplelog;
-#[macro_use]
-extern crate structopt;
+extern crate termion;
 
-use simplelog::{Config, LevelFilter, TermLogger};
 use failure::Error;
+use simplelog::{Config, LevelFilter, TermLogger};
+use std::io;
 use std::path::PathBuf;
 use structopt::StructOpt;
 
 mod block_dev;
+mod menus;
 
 use block_dev::block_devices;
 
-impl Write {
+impl WriteCmd {
     pub fn run(self) -> Result<(), Error> {
-        //let block_devices = block_dev::read_devices()?.collect::<Result<Vec<_>, Error>>();
-        //println!("{:?}", block_devices);
+        check_tty()?;
+
+        let devices = block_dev::block_devices()?.collect::<Result<Vec<_>, io::Error>>()?;
+        let selected = match menus::select_from(&devices) {
+            None => return Ok(()),
+            Some(dev) => dev,
+        };
+        println!("Picked: {}", selected);
         Ok(())
     }
 }
 
-impl Backup {
+impl BackupCmd {
     pub fn run(self) -> Result<(), Error> {
+        check_tty()?;
         Ok(())
     }
 }
 
-impl List {
+impl ListCmd {
     pub fn run(self) -> Result<(), Error> {
         for disk in block_devices()? {
             let disk = disk?;
@@ -59,24 +70,24 @@ fn main() {
 enum Options {
     /// Writes an OS image to a device file
     #[structopt(name = "write")]
-    Write(Write),
+    Write(WriteCmd),
     /// Creates a backup of a device file
     #[structopt(name = "backup")]
-    Backup(Backup),
+    Backup(BackupCmd),
     /// List avaiable block devices
     #[structopt(name = "list")]
-    List(List),
+    List(ListCmd),
 }
 
 #[derive(Debug, StructOpt)]
-pub struct List {
+pub struct ListCmd {
     /// Show all devices including internal ones
     #[structopt(short = "a", long = "show-all")]
     show_all: bool,
 }
 
 #[derive(Debug, StructOpt)]
-pub struct Backup {
+pub struct BackupCmd {
     /// Show all devices including internal ones
     #[structopt(short = "a", long = "show-all")]
     show_all: bool,
@@ -91,7 +102,7 @@ pub struct Backup {
 }
 
 #[derive(Debug, StructOpt)]
-pub struct Write {
+pub struct WriteCmd {
     /// Show all devices including internal ones
     #[structopt(short = "a", long = "show-all")]
     show_all: bool,
@@ -107,4 +118,15 @@ pub struct Write {
     /// The device file to write the image to
     #[structopt(name = "DEVICE", parse(from_os_str))]
     device: Option<PathBuf>,
+}
+
+/// Returns an error if there is no tty attached to both stdin and stderr.
+fn check_tty() -> Result<(), Error> {
+    use std::io::{stdin, stdout};
+    let stdout = stdout();
+    let stdin = stdin();
+    if !termion::is_tty(&stdout) || !termion::is_tty(&stdin) {
+        bail!("Scribe requires a TTY to function and there was none found.");
+    }
+    Ok(())
 }

@@ -124,8 +124,9 @@ impl fmt::Display for BlockDevice {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "{}\t{}\t{}",
+            "{}{}\t{}\t{}",
             self.dev_file().display(),
+            if self.external() { "" } else { "*" },
             self.size(),
             self.label()
         )
