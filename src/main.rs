@@ -24,7 +24,18 @@ impl WriteCmd {
     pub fn run(self) -> Result<(), Error> {
         check_tty()?;
 
-        let devices = block_dev::block_devices()?.collect::<Result<Vec<_>, io::Error>>()?;
+        let devices = block_dev::block_devices()?
+            .filter(|d| {
+                if self.show_all {
+                    return true;
+                }
+
+                d.as_ref().map(|x| !x.external())
+                    // Do not filter out failures, let them propergate so we can handle them
+                    // correctly
+                    .unwrap_or(true)
+            })
+            .collect::<Result<Vec<_>, io::Error>>()?;
         let selected = match menus::select_from(&devices) {
             None => return Ok(()),
             Some(dev) => dev,

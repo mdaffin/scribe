@@ -58,7 +58,7 @@ impl BlockDevice {
         }
 
         let external = if_exists!(read_to_string(dev_path.join("removable")))?
-            .map(|val| val.trim() == "1")
+            .map(|val| val.trim() == "0")
             .unwrap_or(false);
 
         Ok(BlockDevice {
@@ -126,7 +126,7 @@ impl fmt::Display for BlockDevice {
             f,
             "{}{}\t{}\t{}",
             self.dev_file().display(),
-            if self.external() { "" } else { "*" },
+            if self.external() { "*" } else { " " },
             self.size(),
             self.label()
         )
