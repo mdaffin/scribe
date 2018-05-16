@@ -3,6 +3,8 @@
 An interactive command line tool for writing images to removable media such as
 Raspberry Pi images to SD Cards or Linux distro ISOs to USB flash drives.
 
+**WARNING: this is still in active development - use at your own risk**
+
 ## Motivation
 
 There are many tools out there to write an image to a disk, `dd`, `cp`, `pv`,
@@ -34,9 +36,11 @@ Scribe is designed for interactive use, just pass it the img you want to burn
 and it will prompt you with a selection of removable devices to chose from.
 
 ```bash
-$ scribe some.img
-> /dev/sda Generic  USB  SD Reader    7.5GiB
-  /dev/sdb Kingston DataTraveler 2.0   15GiB
-Writing 'some.img' to '/dev/sda'. This can take some time
-Finished. The device can now be safely removed.
+$ sudo scribe write test.img
+Select device to write image to ('q' or 'n' to cancel):
+  /dev/sdb      14.5GiB Kingston DataTraveler 2.0
+> /dev/sda      3.6GiB  Generic USB  SD Reader
+Writing 'test.img' to device '/dev/sda'. This will take a while
+Flushing data. This will take a while
+Finished. /dev/sda is now safe to remove.
 ```
