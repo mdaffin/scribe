@@ -14,6 +14,7 @@ use simplelog::{Config, LevelFilter, TermLogger};
 use std::io;
 use std::path::PathBuf;
 use structopt::StructOpt;
+use std::fs::{File, OpenOptions};
 
 mod block_dev;
 mod menus;
@@ -25,22 +26,44 @@ impl WriteCmd {
         check_tty()?;
 
         let devices = block_dev::block_devices()?
-            .filter(|d| {
+            .filter(|dev| {
                 if self.show_all {
                     return true;
                 }
 
-                d.as_ref().map(|x| !x.external())
+                if let Ok(dev) = dev {
+                    !dev.external()
+                } else {
                     // Do not filter out failures, let them propergate so we can handle them
                     // correctly
-                    .unwrap_or(true)
+                    true
+                }
             })
             .collect::<Result<Vec<_>, io::Error>>()?;
         let selected = match menus::select_from(&devices) {
             None => return Ok(()),
             Some(dev) => dev,
         };
-        println!("Picked: {}", selected);
+
+        println!("Writing to device '{}'...", selected.dev_file().display());
+
+        let mut image_file = File::open(self.image)?;
+        let mut device_file = OpenOptions::new()
+            .write(true)
+            .truncate(false)
+            .open(selected.dev_file())?;
+
+        // TODO preform checks:
+        // - check length of image and device
+
+        io::copy(&mut image_file, &mut device_file)?;
+
+        println!("Flushing data...");
+
+        device_file.sync_all()?;
+
+        println!("Done");
+
         Ok(())
     }
 }
@@ -124,7 +147,7 @@ pub struct WriteCmd {
 
     /// The image to write
     #[structopt(name = "IMAGE", parse(from_os_str))]
-    image: Option<PathBuf>,
+    image: PathBuf,
 
     /// The device file to write the image to
     #[structopt(name = "DEVICE", parse(from_os_str))]
