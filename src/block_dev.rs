@@ -1,6 +1,6 @@
 use std::ffi::OsString;
-use std::fmt::Debug;
 use std::fmt;
+use std::fmt::Debug;
 use std::fs::{self, read_to_string};
 use std::io;
 use std::num::ParseIntError;
@@ -10,9 +10,15 @@ use std::str::FromStr;
 
 #[derive(Debug)]
 pub struct BlockDevice {
+    /// The underlying device name such as `sda` or `mmcblk0`.
     dev_name: OsString,
+    /// A human readable label or name for the device.
     label: String,
-    external: bool,
+    /// True if the devices has been jusged to be a valid removable USB or SD Card. This is just an
+    /// estimation as there are no solid metrics that can be used to tell devices that we want to
+    /// write to vs devices we defently don't.
+    safe_to_write_to: bool,
+    /// The size in bytes of the device.
     size: Size,
 }
 
@@ -57,24 +63,32 @@ impl BlockDevice {
             label_parts.push(model.trim().to_string())
         }
 
-        let external = if_exists!(read_to_string(dev_path.join("removable")))?
-            .map(|val| val.trim() == "0")
-            .unwrap_or(false);
-
         Ok(BlockDevice {
             dev_name,
             label: label_parts.join(" "),
-            external: external,
+            safe_to_write_to: Self::detect_if_safe_to_write_to(&dev_path)?,
             size: read_to(dev_path.join("size"))?,
         })
+    }
+
+    // Logic used to see if the given device is considered one the is safe to write to. There is a
+    // varity of crtera that will be considered for this flag. Currently it is just the removable
+    // flag which is not enough as some devices that are safe are marked as none removable while
+    // others that are no are marked. This function will deal with any corner cases that pop up.
+    fn detect_if_safe_to_write_to(dev_path: impl AsRef<Path>) -> Result<bool, io::Error> {
+        let removable = if_exists!(read_to_string(dev_path.as_ref().join("removable")))?
+            .map(|val| val.trim() == "1")
+            .unwrap_or(false);
+
+        Ok(removable)
     }
 
     pub fn label<'a>(&'a self) -> &'a str {
         &self.label
     }
 
-    pub fn external(&self) -> bool {
-        self.external
+    pub fn safe_to_write_to(&self) -> bool {
+        self.safe_to_write_to
     }
 
     pub fn dev_file(&self) -> PathBuf {
@@ -126,7 +140,7 @@ impl fmt::Display for BlockDevice {
             f,
             "{}{}\t{}\t{}",
             self.dev_file().display(),
-            if self.external() { "*" } else { " " },
+            if self.safe_to_write_to() { "" } else { "*" },
             self.size(),
             self.label()
         )
