@@ -11,10 +11,10 @@ extern crate termion;
 
 use failure::Error;
 use simplelog::{Config, LevelFilter, TermLogger};
+use std::fs::{File, OpenOptions};
 use std::io;
 use std::path::PathBuf;
 use structopt::StructOpt;
-use std::fs::{File, OpenOptions};
 
 mod block_dev;
 mod menus;
@@ -32,7 +32,7 @@ impl WriteCmd {
                 }
 
                 if let Ok(dev) = dev {
-                    !dev.external()
+                    dev.safe_to_write_to()
                 } else {
                     // Do not filter out failures, let them propergate so we can handle them
                     // correctly
@@ -86,7 +86,7 @@ impl ListCmd {
     pub fn run(self) -> Result<(), Error> {
         for disk in block_devices()? {
             let disk = disk?;
-            if self.show_all || disk.external() {
+            if self.show_all || disk.safe_to_write_to() {
                 println!("{}", disk);
             }
         }
@@ -107,7 +107,8 @@ fn main() {
 }
 
 #[derive(StructOpt, Debug)]
-#[structopt(name = "scribe", about = "An easy to use image writer for writing raspberry pi images to SD Cards or ISOs to USB drives.")]
+#[structopt(name = "scribe",
+            about = "An easy to use image writer for writing raspberry pi images to SD Cards or ISOs to USB drives.")]
 enum Options {
     /// Writes an OS image to a device file
     #[structopt(name = "write")]
