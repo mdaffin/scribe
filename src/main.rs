@@ -45,7 +45,11 @@ impl WriteCmd {
             Some(dev) => dev,
         };
 
-        println!("Writing to device '{}'...", selected.dev_file().display());
+        println!(
+            "Writing '{}' to device '{}'. This will take a while",
+            self.image.display(),
+            selected.dev_file().display()
+        );
 
         let mut image_file = File::open(self.image)?;
         let mut device_file = OpenOptions::new()
@@ -58,11 +62,14 @@ impl WriteCmd {
 
         io::copy(&mut image_file, &mut device_file)?;
 
-        println!("Flushing data...");
+        println!("Flushing data. This will take a while");
 
         device_file.sync_all()?;
 
-        println!("Done");
+        println!(
+            "Finished. {} is now safe to remove.",
+            selected.dev_file().display()
+        );
 
         Ok(())
     }
