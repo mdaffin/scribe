@@ -2,6 +2,7 @@
 extern crate failure;
 #[macro_use]
 extern crate human_panic;
+extern crate itertools;
 #[macro_use]
 extern crate structopt;
 //#[macro_use]
@@ -10,6 +11,7 @@ extern crate simplelog;
 extern crate termion;
 
 use failure::Error;
+use itertools::Itertools;
 use simplelog::{Config, LevelFilter, TermLogger};
 use std::fs::{File, OpenOptions};
 use std::io;
@@ -18,6 +20,7 @@ use structopt::StructOpt;
 
 mod block_dev;
 mod menus;
+mod check;
 
 use block_dev::block_devices;
 
@@ -28,15 +31,12 @@ impl WriteCmd {
         let devices = block_dev::block_devices()?
             .filter(|dev| {
                 if self.show_all {
-                    return true;
-                }
-
-                if let Ok(dev) = dev {
-                    dev.safe_to_write_to()
-                } else {
-                    // Do not filter out failures, let them propergate so we can handle them
-                    // correctly
                     true
+                } else {
+                    dev.as_ref()
+                        .map(|ref d| d.safe_to_write_to())
+                        // Do not filter out failures, deal with them later
+                        .unwrap_or(true)
                 }
             })
             .collect::<Result<Vec<_>, io::Error>>()?;
