@@ -1,4 +1,4 @@
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
 use std::fmt;
 use std::fmt::Debug;
 use std::fs::{self, read_to_string};
@@ -14,10 +14,6 @@ pub struct BlockDevice {
     dev_name: OsString,
     /// A human readable label or name for the device.
     label: String,
-    /// True if the devices has been jusged to be a valid removable USB or SD Card. This is just an
-    /// estimation as there are no solid metrics that can be used to tell devices that we want to
-    /// write to vs devices we defently don't.
-    safe_to_write_to: bool,
     /// The size in bytes of the device.
     size: Size,
 }
@@ -33,18 +29,6 @@ pub fn block_devices() -> io::Result<BlockDeviceIter> {
     Ok(BlockDeviceIter {
         inner: fs::read_dir("/sys/block")?,
     })
-}
-
-/// Converts a Result<T> to a Result<Option<T>> where Ok(None) is returned if the error was
-/// std::io::ErrorKind::NotFound
-macro_rules! if_exists {
-    ($x:expr) => {
-        match $x {
-            Err(ref e) if e.kind() == io::ErrorKind::NotFound => Ok(None),
-            Ok(c) => Ok(Some(c)),
-            Err(e) => Err(e),
-        }
-    };
 }
 
 impl BlockDevice {
@@ -66,29 +50,16 @@ impl BlockDevice {
         Ok(BlockDevice {
             dev_name,
             label: label_parts.join(" "),
-            safe_to_write_to: Self::detect_if_safe_to_write_to(&dev_path)?,
             size: read_to(dev_path.join("size"))?,
         })
-    }
-
-    // Logic used to see if the given device is considered one the is safe to write to. There is a
-    // varity of crtera that will be considered for this flag. Currently it is just the removable
-    // flag which is not enough as some devices that are safe are marked as none removable while
-    // others that are no are marked. This function will deal with any corner cases that pop up.
-    fn detect_if_safe_to_write_to(dev_path: impl AsRef<Path>) -> Result<bool, io::Error> {
-        let removable = if_exists!(read_to_string(dev_path.as_ref().join("removable")))?
-            .map(|val| val.trim() == "1")
-            .unwrap_or(false);
-
-        Ok(removable)
     }
 
     pub fn label<'a>(&'a self) -> &'a str {
         &self.label
     }
 
-    pub fn safe_to_write_to(&self) -> bool {
-        self.safe_to_write_to
+    pub fn sys_path(&self) -> PathBuf {
+        PathBuf::from("/sys/block").join(self.dev_name.clone())
     }
 
     pub fn dev_file(&self) -> PathBuf {
@@ -138,9 +109,8 @@ impl fmt::Display for BlockDevice {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "{}{}\t{}\t{}",
+            "{}\t{}\t{}",
             self.dev_file().display(),
-            if self.safe_to_write_to() { "" } else { "*" },
             self.size(),
             self.label()
         )

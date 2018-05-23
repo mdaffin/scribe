@@ -1,8 +1,8 @@
 use std::fmt::Display;
-use std::io::{self, stdin, stdout, Write};
+use std::io::{stdin, stdout, Write};
 use termion::event::Key;
 use termion::input::TermRead;
-use termion::{self, color, raw::IntoRawMode};
+use termion::{self, raw::IntoRawMode};
 
 pub fn select_from<T>(items: &[T]) -> Option<&T>
 where

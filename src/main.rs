@@ -18,9 +18,11 @@ use std::io;
 use std::path::PathBuf;
 use structopt::StructOpt;
 
+#[macro_use]
+mod util;
 mod block_dev;
-mod menus;
 mod check;
+mod menus;
 
 use block_dev::block_devices;
 
@@ -29,16 +31,15 @@ impl WriteCmd {
         check_tty()?;
 
         let devices = block_dev::block_devices()?
-            .filter(|dev| {
-                if self.show_all {
-                    true
-                } else {
-                    dev.as_ref()
-                        .map(|ref d| d.safe_to_write_to())
-                        // Do not filter out failures, deal with them later
-                        .unwrap_or(true)
+            .map(|dev| match dev {
+                Ok(dev) => {
+                    let safe = check::all(&dev)?.is_none();
+                    Ok((dev, safe))
                 }
+                Err(err) => Err(err),
             })
+            .filter(|dev| if self.show_all { true } else { false })
+            .map_results(|(dev, _)| dev)
             .collect::<Result<Vec<_>, io::Error>>()?;
         let selected = match menus::select_from(&devices) {
             None => return Ok(()),
@@ -86,7 +87,7 @@ impl ListCmd {
     pub fn run(self) -> Result<(), Error> {
         for disk in block_devices()? {
             let disk = disk?;
-            if self.show_all || disk.safe_to_write_to() {
+            if self.show_all || check::all(&disk)?.is_none() {
                 println!("{}", disk);
             }
         }
@@ -126,6 +127,9 @@ pub struct ListCmd {
     /// Show all devices including internal ones
     #[structopt(short = "a", long = "show-all")]
     show_all: bool,
+    /// List the reasons why a device is considered not safe (implies --show-all)
+    #[structopt(short = "r", long = "reasons")]
+    reasons: bool,
 }
 
 #[derive(Debug, StructOpt)]
