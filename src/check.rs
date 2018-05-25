@@ -6,18 +6,19 @@ use itertools::Itertools;
 
 pub enum Reason {
     NonRemovable,
+    /// Indicates the device is mount or otherwise in use
     Mounted,
 }
 
 pub fn all(blkdev: &BlockDevice) -> Result<Option<Vec<Reason>>, io::Error> {
     let mut reasons = Vec::new();
 
-    if !is_removable(blkdev)? {
-        reasons.push(Reason::NonRemovable)
-    }
-
     if is_mounted(blkdev)? {
         reasons.push(Reason::Mounted)
+    }
+
+    if !is_removable(blkdev)? {
+        reasons.push(Reason::NonRemovable)
     }
 
     if reasons.len() == 0 {
@@ -46,6 +47,8 @@ fn is_mounted(blkdev: &BlockDevice) -> Result<bool, io::Error> {
         .map(|line| line.split_whitespace().next_tuple())
         .filter_map(|line| line)
         .find(|(dev, _)| false);
+
+    println!("{:?}", mount);
 
     Ok(false)
 }
