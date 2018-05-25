@@ -4,6 +4,7 @@ use std::io;
 
 use itertools::Itertools;
 
+#[derive(Debug)]
 pub enum Reason {
     NonRemovable,
     /// Indicates the device is mount or otherwise in use

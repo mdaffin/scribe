@@ -87,8 +87,9 @@ impl ListCmd {
     pub fn run(self) -> Result<(), Error> {
         for disk in block_devices()? {
             let disk = disk?;
-            if self.show_all || check::all(&disk)?.is_none() {
-                println!("{}", disk);
+            let checks = check::all(&disk)?;
+            if self.show_all || checks.is_none() {
+                println!("{} - {:?}", disk, checks);
             }
         }
         Ok(())
