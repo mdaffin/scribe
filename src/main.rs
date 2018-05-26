@@ -89,7 +89,17 @@ impl ListCmd {
             let disk = disk?;
             let checks = check::all(&disk)?;
             if self.show_all || checks.is_none() {
-                println!("{} - {:?}", disk, checks);
+                println!(
+                    "{}\t{}\t{}{}",
+                    self.dev_file().display(),
+                    self.size(),
+                    self.label(),
+                    if let Some(checks) == checks {
+                        format!("\t{}", checks.join(','))
+                    } else {
+                        ""
+                    }
+                )
             }
         }
         Ok(())
