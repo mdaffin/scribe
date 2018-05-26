@@ -1,6 +1,7 @@
 use block_dev::BlockDevice;
 use std::fs::{self, read_to_string};
 use std::io;
+use std::fmt;
 use std::path::{Path, PathBuf};
 
 use itertools::Itertools;
@@ -56,4 +57,17 @@ fn is_mounted(blkdev: &BlockDevice) -> Result<bool, io::Error> {
 
             part_name.starts_with(dev_name)
         }))
+}
+
+impl fmt::Display for Reason {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Reason::NonRemovable => "non-removable",
+                Reason::Mounted => "mounted",
+            }
+        )
+    }
 }
