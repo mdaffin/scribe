@@ -58,6 +58,10 @@ impl BlockDevice {
         &self.label
     }
 
+    pub fn dev_name(&self) -> &OsStr {
+        &self.dev_name
+    }
+
     pub fn sys_path(&self) -> PathBuf {
         PathBuf::from("/sys/block").join(self.dev_name.clone())
     }

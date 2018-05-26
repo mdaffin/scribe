@@ -1,6 +1,7 @@
 use block_dev::BlockDevice;
 use std::fs::{self, read_to_string};
 use std::io;
+use std::path::{Path, PathBuf};
 
 use itertools::Itertools;
 
@@ -18,7 +19,7 @@ pub fn all(blkdev: &BlockDevice) -> Result<Option<Vec<Reason>>, io::Error> {
         reasons.push(Reason::Mounted)
     }
 
-    if !is_removable(blkdev)? {
+    if is_none_removable(blkdev)? {
         reasons.push(Reason::NonRemovable)
     }
 
@@ -33,23 +34,26 @@ pub fn all(blkdev: &BlockDevice) -> Result<Option<Vec<Reason>>, io::Error> {
 // varity of crtera that will be considered for this flag. Currently it is just the removable
 // flag which is not enough as some devices that are safe are marked as none removable while
 // others that are no are marked. This function will deal with any corner cases that pop up.
-fn is_removable(blkdev: &BlockDevice) -> Result<bool, io::Error> {
+fn is_none_removable(blkdev: &BlockDevice) -> Result<bool, io::Error> {
     Ok(
         if_exists!(read_to_string(blkdev.sys_path().join("removable")))?
-            .map(|val| val.trim() == "1")
+            .map(|val| val.trim() == "0")
             .unwrap_or(false),
     )
 }
 
 fn is_mounted(blkdev: &BlockDevice) -> Result<bool, io::Error> {
     let mounts = fs::read_to_string("/proc/mounts")?;
-    let mount = mounts
+    Ok(mounts
         .lines()
         .map(|line| line.split_whitespace().next_tuple())
-        .filter_map(|line| line)
-        .find(|(dev, _)| false);
+        .filter_map(|line| line) // Filter out blank lines
+        .any(|(dev, _)| {
+            let dev_name = blkdev.dev_file();
+            let dev_name = dev_name.to_str().expect("none unicode char in device path");
+            let part_name = PathBuf::from(dev);
+            let part_name = part_name.to_str().expect("none unicode char in mount file");
 
-    println!("{:?}", mount);
-
-    Ok(false)
+            part_name.starts_with(dev_name)
+        }))
 }
