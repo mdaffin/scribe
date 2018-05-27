@@ -7,6 +7,7 @@ use std::num::ParseIntError;
 use std::path::Path;
 use std::path::PathBuf;
 use std::str::FromStr;
+use check;
 
 #[derive(Debug)]
 pub struct BlockDevice {
@@ -16,6 +17,9 @@ pub struct BlockDevice {
     label: String,
     /// The size in bytes of the device.
     size: Size,
+    /// Flags that indicate a risky device. If any are present then the device is one we don't want
+    /// to write to.
+    flags: Vec<check::Reason>,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -47,11 +51,19 @@ impl BlockDevice {
             label_parts.push(model.trim().to_string())
         }
 
-        Ok(BlockDevice {
+        let mut blkdev = BlockDevice {
             dev_name,
             label: label_parts.join(" "),
             size: read_to(dev_path.join("size"))?,
-        })
+            flags: Vec::new(),
+        };
+
+        blkdev.flags = check::all(&blkdev)?;
+        Ok(blkdev)
+    }
+
+    pub fn flags(&self) -> &[check::Reason] {
+        &self.flags
     }
 
     pub fn label<'a>(&'a self) -> &'a str {

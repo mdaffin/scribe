@@ -33,7 +33,7 @@ impl WriteCmd {
         let devices = block_dev::block_devices()?
             .map(|dev| match dev {
                 Ok(dev) => {
-                    let safe = check::all(&dev)?.is_none();
+                    let safe = check::all(&dev)?.len() == 0;
                     Ok((dev, safe))
                 }
                 Err(err) => Err(err),
@@ -87,18 +87,15 @@ impl ListCmd {
     pub fn run(self) -> Result<(), Error> {
         for disk in block_devices()? {
             let disk = disk?;
-            let checks = check::all(&disk)?;
-            if self.show_all || checks.is_none() {
+            if self.show_all || disk.flags().len() == 0 {
                 println!(
                     "{:12} {:10} {:40} {}",
                     disk.dev_file().display(),
                     disk.size(),
                     disk.label(),
-                    if let Some(checks) = checks {
-                        let j = checks.iter().map(|c| format!("{}", c)).join(",");
+                    {
+                        let j = disk.flags().iter().map(|c| format!("{}", c)).join(",");
                         format!("{}", j)
-                    } else {
-                        "".into()
                     }
                 )
             }

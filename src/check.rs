@@ -13,7 +13,7 @@ pub enum Reason {
     Mounted,
 }
 
-pub fn all(blkdev: &BlockDevice) -> Result<Option<Vec<Reason>>, io::Error> {
+pub fn all(blkdev: &BlockDevice) -> Result<Vec<Reason>, io::Error> {
     let mut reasons = Vec::new();
 
     if is_mounted(blkdev)? {
@@ -24,11 +24,7 @@ pub fn all(blkdev: &BlockDevice) -> Result<Option<Vec<Reason>>, io::Error> {
         reasons.push(Reason::NonRemovable)
     }
 
-    if reasons.len() == 0 {
-        Ok(None)
-    } else {
-        Ok(Some(reasons))
-    }
+    Ok(reasons)
 }
 
 // Logic used to see if the given device is considered one the is safe to write to. There is a
