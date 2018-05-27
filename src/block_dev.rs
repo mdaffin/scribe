@@ -124,15 +124,17 @@ impl fmt::Display for BlockDevice {
 impl fmt::Display for Size {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let size = self.0 * 512;
-        match size {
-            0...1024 => write!(f, "{}", size),
-            1024...1_048_576 => write!(f, "{:.1}KiB", size as f64 / 1024.0),
-            1_048_576...1_073_741_824 => write!(f, "{:.1}MiB", size as f64 / 1_048_576.0),
+        let decimals = f.precision().unwrap_or(1);
+        let string = match size {
+            0...1024 => format!("{}", size),
+            1024...1_048_576 => format!("{:.*}KiB", decimals, size as f64 / 1024.0),
+            1_048_576...1_073_741_824 => format!("{:.*}MiB", decimals, size as f64 / 1_048_576.0),
             1_073_741_824...1_099_511_627_776 => {
-                write!(f, "{:.1}GiB", size as f64 / 1_073_741_824.0)
+                format!("{:.*}GiB", decimals, size as f64 / 1_073_741_824.0)
             }
-            _ => write!(f, "{:.1}TiB", self.0),
-        }
+            _ => format!("{:.*}TiB", decimals, self.0),
+        };
+        f.pad_integral(true, "", &string)
     }
 }
 
