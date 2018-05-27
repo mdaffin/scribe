@@ -31,15 +31,12 @@ impl WriteCmd {
         check_tty()?;
 
         let devices = block_dev::block_devices()?
-            .map(|dev| match dev {
-                Ok(dev) => {
-                    let safe = check::all(&dev)?.len() == 0;
-                    Ok((dev, safe))
-                }
-                Err(err) => Err(err),
+            .filter(|dev| {
+                self.show_all
+                    || dev.as_ref()
+                        .and_then(|dev| Ok(dev.flags().len() == 0))
+                        .unwrap_or(true)
             })
-            .filter(|dev| if self.show_all { true } else { false })
-            .map_results(|(dev, _)| dev)
             .collect::<Result<Vec<_>, io::Error>>()?;
         let selected = match menus::select_from(&devices) {
             None => return Ok(()),
