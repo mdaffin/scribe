@@ -88,16 +88,7 @@ impl ListCmd {
         for disk in block_devices()? {
             let disk = disk?;
             if self.show_all || disk.flags().len() == 0 {
-                println!(
-                    "{:12} {:10} {:40} {}",
-                    disk.dev_file().display(),
-                    disk.size(),
-                    disk.label(),
-                    {
-                        let j = disk.flags().iter().map(|c| format!("{}", c)).join(",");
-                        format!("{}", j)
-                    }
-                )
+                println!("{}", disk)
             }
         }
         Ok(())

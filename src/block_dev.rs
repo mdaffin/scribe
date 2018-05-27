@@ -7,6 +7,7 @@ use std::num::ParseIntError;
 use std::path::Path;
 use std::path::PathBuf;
 use std::str::FromStr;
+use itertools::Itertools;
 use check;
 
 #[derive(Debug)]
@@ -125,10 +126,11 @@ impl fmt::Display for BlockDevice {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "{}\t{}\t{}",
+            "{:12} {:10} {:40} {}",
             self.dev_file().display(),
             self.size(),
-            self.label()
+            self.label(),
+            self.flags().iter().map(|c| format!("{}", c)).join(",")
         )
     }
 }
