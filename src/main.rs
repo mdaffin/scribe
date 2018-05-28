@@ -21,7 +21,6 @@ use structopt::StructOpt;
 #[macro_use]
 mod util;
 mod block_dev;
-mod check;
 mod menus;
 
 use block_dev::block_devices;

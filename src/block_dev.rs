@@ -1,14 +1,12 @@
+use itertools::Itertools;
 use std::ffi::{OsStr, OsString};
-use std::fmt;
 use std::fmt::Debug;
+use std::fmt;
 use std::fs::{self, read_to_string};
 use std::io;
 use std::num::ParseIntError;
-use std::path::Path;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use itertools::Itertools;
-use check;
 
 #[derive(Debug)]
 pub struct BlockDevice {
@@ -20,7 +18,14 @@ pub struct BlockDevice {
     size: Size,
     /// Flags that indicate a risky device. If any are present then the device is one we don't want
     /// to write to.
-    flags: Vec<check::Reason>,
+    flags: Vec<Reason>,
+}
+
+#[derive(Debug)]
+pub enum Reason {
+    NonRemovable,
+    /// Indicates the device is mount or otherwise in use
+    Mounted,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -55,15 +60,18 @@ impl BlockDevice {
         let mut blkdev = BlockDevice {
             dev_name,
             label: label_parts.join(" "),
-            size: read_to(dev_path.join("size"))?,
+            size: read_to_string(dev_path.join("size"))?
+                .trim()
+                .parse()
+                .expect("could not parse device size"),
             flags: Vec::new(),
         };
 
-        blkdev.flags = check::all(&blkdev)?;
+        blkdev.flags = check_all(&blkdev)?;
         Ok(blkdev)
     }
 
-    pub fn flags(&self) -> &[check::Reason] {
+    pub fn flags(&self) -> &[Reason] {
         &self.flags
     }
 
@@ -152,18 +160,57 @@ impl fmt::Display for Size {
     }
 }
 
-/// Reads the given file and parses it into type T.
-pub fn read_to<P, T>(file_name: P) -> Result<T, io::Error>
-where
-    P: AsRef<Path>,
-    <T as FromStr>::Err: Debug,
-    T: FromStr + Debug,
-{
-    match read_to_string(file_name.as_ref()) {
-        Ok(contents) => Ok(contents.trim().parse().expect(&format!(
-            "could not parse contents of {}",
-            file_name.as_ref().display()
-        ))),
-        Err(e) => Err(e),
+impl fmt::Display for Reason {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Reason::NonRemovable => "non-removable",
+                Reason::Mounted => "mounted",
+            }
+        )
     }
+}
+
+pub fn check_all(blkdev: &BlockDevice) -> Result<Vec<Reason>, io::Error> {
+    let mut reasons = Vec::new();
+
+    if is_mounted(blkdev)? {
+        reasons.push(Reason::Mounted)
+    }
+
+    if is_none_removable(blkdev)? {
+        reasons.push(Reason::NonRemovable)
+    }
+
+    Ok(reasons)
+}
+
+// Logic used to see if the given device is considered one the is safe to write to. There is a
+// varity of crtera that will be considered for this flag. Currently it is just the removable
+// flag which is not enough as some devices that are safe are marked as none removable while
+// others that are no are marked. This function will deal with any corner cases that pop up.
+fn is_none_removable(blkdev: &BlockDevice) -> Result<bool, io::Error> {
+    Ok(
+        if_exists!(read_to_string(blkdev.sys_path().join("removable")))?
+            .map(|val| val.trim() == "0")
+            .unwrap_or(false),
+    )
+}
+
+fn is_mounted(blkdev: &BlockDevice) -> Result<bool, io::Error> {
+    let mounts = fs::read_to_string("/proc/mounts")?;
+    Ok(mounts
+        .lines()
+        .map(|line| line.split_whitespace().next_tuple())
+        .filter_map(|line| line) // Filter out blank lines
+        .any(|(dev, _)| {
+            let dev_name = blkdev.dev_file();
+            let dev_name = dev_name.to_str().expect("none unicode char in device path");
+            let part_name = PathBuf::from(dev);
+            let part_name = part_name.to_str().expect("none unicode char in mount file");
+
+            part_name.starts_with(dev_name)
+        }))
 }
