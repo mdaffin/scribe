@@ -106,17 +106,17 @@ impl BlockDevice {
 
         // Is mounted
         if fs::read_to_string("/proc/mounts")?
-        .lines()
-        .map(|line| line.split_whitespace().next_tuple())
-        .filter_map(|line| line) // Filter out blank lines
-        .any(|(dev, _)| {
-            let dev_name = self.dev_file();
-            let dev_name = dev_name.to_str().expect("none unicode char in device path");
-            let part_name = PathBuf::from(dev);
-            let part_name = part_name.to_str().expect("none unicode char in mount file");
+            .lines()
+            .map(|line| line.split_whitespace().next_tuple())
+            .filter_map(|line| line) // Filter out blank lines
+            .any(|(dev, _)| {
+                let dev_name = self.dev_file();
+                let dev_name = dev_name.to_str().expect("none unicode char in device path");
+                let part_name = PathBuf::from(dev);
+                let part_name = part_name.to_str().expect("none unicode char in mount file");
 
-            part_name.starts_with(dev_name)
-        }) {
+                part_name.starts_with(dev_name)
+            }) {
             self.flags.push(Reason::Mounted);
         }
 
