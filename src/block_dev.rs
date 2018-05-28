@@ -67,7 +67,7 @@ impl BlockDevice {
             flags: Vec::new(),
         };
 
-        blkdev.check_none_removable()?;
+        blkdev.run_checks()?;
         Ok(blkdev)
     }
 
@@ -95,17 +95,16 @@ impl BlockDevice {
         self.size
     }
 
-    fn check_none_removable(&mut self) -> Result<(), io::Error> {
+    fn run_checks(&mut self) -> Result<(), io::Error> {
+        // Is removable
         if if_exists!(read_to_string(self.sys_path().join("removable")))?
             .map(|val| val.trim() == "0")
             .unwrap_or(false)
         {
             self.flags.push(Reason::NonRemovable);
         }
-        Ok(())
-    }
 
-    fn is_mounted(&mut self) -> Result<(), io::Error> {
+        // Is mounted
         if fs::read_to_string("/proc/mounts")?
         .lines()
         .map(|line| line.split_whitespace().next_tuple())
@@ -120,6 +119,7 @@ impl BlockDevice {
         }) {
             self.flags.push(Reason::Mounted);
         }
+
         Ok(())
     }
 }
