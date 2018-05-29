@@ -8,6 +8,11 @@ use std::num::ParseIntError;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
+#[cfg(not(test))]
+static PROC_MOUNTS: &'static str = "/proc/mounts";
+#[cfg(test)]
+static PROC_MOUNTS: &'static str = "src/tests/mounts";
+
 #[derive(Debug)]
 pub struct BlockDevice {
     /// The sysfs block device path
@@ -23,9 +28,21 @@ pub struct BlockDevice {
 
 #[derive(Debug)]
 pub enum Reason {
+    /// A device that is marked as non removable and is not an SD Card (as they are always marked
+    /// as non removable).
     NonRemovable,
     /// Indicates the device is mount or otherwise in use
     Mounted,
+    /// A device that has a size of 0. This is normally SD Card readers that do not have an SD Card
+    /// inserted.
+    ZeroSize,
+    /// A device that is marked as read only such as SD Cards with the write lock switch set.
+    ReadOnly,
+    /// A large device, one that is so big that writing an OS image to it is a waste and likely not
+    /// wanted. These are more likely to be removable USB HDDs for backups or extra storage and so
+    /// should not be listed by default. This includes devices that are >36GB in size (ie ~32GB
+    /// devices are ok with some buffer for variation in device size).
+    Large,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -109,7 +126,7 @@ impl BlockDevice {
         }
 
         // Is mounted
-        if fs::read_to_string("/proc/mounts")?
+        if fs::read_to_string(PROC_MOUNTS)?
             .lines()
             .filter_map(|line| line.split_whitespace().next_tuple())
             .any(|(dev, _)| {
@@ -196,5 +213,19 @@ impl fmt::Display for Reason {
                 Reason::Mounted => "mounted",
             }
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sysfs() -> PathBuf {
+        PathBuf::from(file!()).parent().unwrap().join("tests/sysfs")
+    }
+
+    #[test]
+    fn checks() {
+        println!("{}", sysfs().display());
     }
 }
