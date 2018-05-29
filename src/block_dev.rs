@@ -43,7 +43,7 @@ pub fn block_devices() -> io::Result<BlockDeviceIter> {
 
 impl BlockDevice {
     pub fn new(sys_path: PathBuf) -> Result<BlockDevice, io::Error> {
-        let mut label_parts = Vec::new();
+        let mut label_parts = Vec::with_capacity(2);
 
         let vendor = if_exists!(read_to_string(sys_path.join("device/vendor")))?;
         let model = if_exists!(read_to_string(sys_path.join("device/model")))?;
@@ -160,7 +160,7 @@ impl fmt::Display for BlockDevice {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "{:12} {:10} {:40} {}",
+            "{:10} {:10} {:25} {}",
             self.dev_file().display(),
             self.size(),
             self.label(),
