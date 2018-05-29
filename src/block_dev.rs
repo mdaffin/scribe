@@ -1,7 +1,7 @@
 use itertools::Itertools;
 use std::ffi::{OsStr, OsString};
-use std::fmt::Debug;
 use std::fmt;
+use std::fmt::Debug;
 use std::fs::{self, read_to_string};
 use std::io;
 use std::num::ParseIntError;
@@ -10,8 +10,8 @@ use std::str::FromStr;
 
 #[derive(Debug)]
 pub struct BlockDevice {
-    /// The underlying device name such as `sda` or `mmcblk0`.
-    dev_name: OsString,
+    /// The sysfs block device path
+    sys_path: PathBuf,
     /// A human readable label or name for the device.
     label: String,
     /// The size in bytes of the device.
@@ -42,12 +42,11 @@ pub fn block_devices() -> io::Result<BlockDeviceIter> {
 }
 
 impl BlockDevice {
-    pub fn new(dev_name: OsString) -> Result<BlockDevice, io::Error> {
-        let dev_path = PathBuf::from("/sys/block").join(dev_name.clone());
+    pub fn new(sys_path: PathBuf) -> Result<BlockDevice, io::Error> {
         let mut label_parts = Vec::new();
 
-        let vendor = if_exists!(read_to_string(dev_path.join("device/vendor")))?;
-        let model = if_exists!(read_to_string(dev_path.join("device/model")))?;
+        let vendor = if_exists!(read_to_string(sys_path.join("device/vendor")))?;
+        let model = if_exists!(read_to_string(sys_path.join("device/model")))?;
 
         if let Some(vendor) = vendor {
             label_parts.push(vendor.trim().to_string())
@@ -57,13 +56,16 @@ impl BlockDevice {
             label_parts.push(model.trim().to_string())
         }
 
+        let size = read_to_string(sys_path.join("size"))
+            .expect("failed to read size")
+            .trim()
+            .parse()
+            .expect("could not parse device size");
+
         let mut blkdev = BlockDevice {
-            dev_name,
+            sys_path,
             label: label_parts.join(" "),
-            size: read_to_string(dev_path.join("size"))?
-                .trim()
-                .parse()
-                .expect("could not parse device size"),
+            size,
             flags: Vec::new(),
         };
 
@@ -80,15 +82,17 @@ impl BlockDevice {
     }
 
     pub fn dev_name(&self) -> &OsStr {
-        &self.dev_name
+        &self.sys_path
+            .file_name()
+            .expect("missing file name on device path")
     }
 
-    pub fn sys_path(&self) -> PathBuf {
-        PathBuf::from("/sys/block").join(self.dev_name.clone())
+    pub fn sys_path(&self) -> &Path {
+        self.sys_path.as_path()
     }
 
     pub fn dev_file(&self) -> PathBuf {
-        PathBuf::from("/dev").join(self.dev_name.clone())
+        PathBuf::from("/dev").join(self.dev_name())
     }
 
     pub fn size(&self) -> Size {
@@ -135,12 +139,7 @@ impl Iterator for BlockDeviceIter {
                     if !dir.path().join("device").exists() {
                         continue;
                     };
-                    Some(BlockDevice::new(
-                        dir.path()
-                            .file_name()
-                            .expect(&format!("missing file_name for '{}'", dir.path().display()))
-                            .into(),
-                    ))
+                    Some(BlockDevice::new(dir.path()))
                 }
                 Some(Err(err)) => Some(Err(err.into())),
                 None => None,
