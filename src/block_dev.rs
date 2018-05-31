@@ -79,15 +79,12 @@ impl BlockDevice {
             .parse()
             .expect("could not parse device size");
 
-        let mut blkdev = BlockDevice {
+        Ok(BlockDevice {
             sys_path,
             label: label_parts.join(" "),
             size,
             flags: Vec::new(),
-        };
-
-        blkdev.run_checks()?;
-        Ok(blkdev)
+        })
     }
 
     pub fn flags(&self) -> &[Reason] {
@@ -115,33 +112,33 @@ impl BlockDevice {
     pub fn size(&self) -> Size {
         self.size
     }
+}
 
-    fn run_checks(&mut self) -> Result<(), io::Error> {
-        // Is removable
-        if if_exists!(read_to_string(self.sys_path().join("removable")))?
-            .map(|val| val.trim() == "0")
-            .unwrap_or(false)
-        {
-            self.flags.push(Reason::NonRemovable);
-        }
-
-        // Is mounted
-        if fs::read_to_string(PROC_MOUNTS)?
-            .lines()
-            .filter_map(|line| line.split_whitespace().next_tuple())
-            .any(|(dev, _)| {
-                let dev_name = self.dev_file();
-                let dev_name = dev_name.to_str().expect("none unicode char in device path");
-                let part_name = PathBuf::from(dev);
-                let part_name = part_name.to_str().expect("none unicode char in mount file");
-
-                part_name.starts_with(dev_name)
-            }) {
-            self.flags.push(Reason::Mounted);
-        }
-
-        Ok(())
+fn run_checks(blkdev: &mut BlockDevice) -> Result<(), io::Error> {
+    // Is removable
+    if if_exists!(read_to_string(blkdev.sys_path().join("removable")))?
+        .map(|val| val.trim() == "0")
+        .unwrap_or(false)
+    {
+        blkdev.flags.push(Reason::NonRemovable);
     }
+
+    // Is mounted
+    if fs::read_to_string(PROC_MOUNTS)?
+        .lines()
+        .filter_map(|line| line.split_whitespace().next_tuple())
+        .any(|(dev, _)| {
+            let dev_name = blkdev.dev_file();
+            let dev_name = dev_name.to_str().expect("none unicode char in device path");
+            let part_name = PathBuf::from(dev);
+            let part_name = part_name.to_str().expect("none unicode char in mount file");
+
+            part_name.starts_with(dev_name)
+        }) {
+        blkdev.flags.push(Reason::Mounted);
+    }
+
+    Ok(())
 }
 
 impl Iterator for BlockDeviceIter {
@@ -156,7 +153,14 @@ impl Iterator for BlockDeviceIter {
                     if !dir.path().join("device").exists() {
                         continue;
                     };
-                    Some(BlockDevice::new(dir.path()))
+
+                    let mut blkdev = BlockDevice::new(dir.path());
+                    if let Ok(ref mut blkdev) = blkdev {
+                        if let Err(err) = run_checks(blkdev) {
+                            return Some(Err(err));
+                        }
+                    }
+                    Some(blkdev)
                 }
                 Some(Err(err)) => Some(Err(err.into())),
                 None => None,
@@ -211,6 +215,9 @@ impl fmt::Display for Reason {
             match self {
                 Reason::NonRemovable => "non-removable",
                 Reason::Mounted => "mounted",
+                Reason::ZeroSize => "zero-size",
+                Reason::ReadOnly => "read-only",
+                Reason::Large => "large",
             }
         )
     }
@@ -219,13 +226,19 @@ impl fmt::Display for Reason {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs::read_dir;
 
     fn sysfs() -> PathBuf {
         PathBuf::from(file!()).parent().unwrap().join("tests/sysfs")
     }
 
     #[test]
-    fn checks() {
-        println!("{}", sysfs().display());
+    fn device_checks() {
+        for res in read_dir(sysfs()).unwrap() {
+            let dir = res.unwrap();
+            println!("{}", dir.path().display());
+            let blkdev = BlockDevice::new(dir.path()).unwrap();
+            println!("{:?}", blkdev);
+        }
     }
 }
