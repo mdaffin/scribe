@@ -1,7 +1,6 @@
 use itertools::Itertools;
-use std::ffi::{OsStr, OsString};
+use std::ffi::OsStr;
 use std::fmt;
-use std::fmt::Debug;
 use std::fs::{self, read_to_string};
 use std::io;
 use std::num::ParseIntError;
@@ -28,16 +27,16 @@ pub struct BlockDevice {
     flags: Vec<Reason>,
 }
 
-/// The general type of a block device. FlashDrives and SDCards are considered safe to write to
+/// The general type of a block device. FlashDrives and SDMMC are considered safe to write to
 /// while other devices are not.
 #[derive(Debug, PartialEq)]
 pub enum DeviceType {
     /// USB flash drives, typically devices that you will want to write OS and Live USB images to.
-    /// Note that this can include some SDCard adaptors that present themselves as SCSI devices.
+    /// Note that this can include some SDMMC adaptors that present themselves as SCSI devices.
     FlashDrive,
     /// SD/MMC Cards and card readers. Typically what you would write raspberry pi images or images
     /// for other embedded devices. Note that some adaptors will look more like USB flash drives.
-    SDCard,
+    SDMMC,
     /// Any internal drive.
     InternalDrive,
     /// Any external drive that is not a good candidate for a writing OS images to, such as USB
@@ -143,7 +142,7 @@ impl BlockDevice {
             .expect("none unicode char in device name");
 
         if dev_name.starts_with("mmcblk") {
-            Ok(DeviceType::SDCard)
+            Ok(DeviceType::SDMMC)
         } else if dev_name.starts_with("sd") {
             if read_to_string(blkdev_path.as_ref().join("removable"))
                 .map(|val| val.trim() == "0")
@@ -218,13 +217,17 @@ impl FromStr for Size {
 
 impl fmt::Display for BlockDevice {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{:10} {:10} {:25} {}",
-            self.dev_file().display(),
-            self.size(),
-            self.label(),
-            self.flags().iter().map(|c| format!("{}", c)).join(",")
+        f.pad_integral(
+            true,
+            "",
+            &format!(
+                "{:10} {:10} {:25} {:10} {}",
+                self.dev_file().display(),
+                self.size(),
+                self.label(),
+                self.device_type,
+                self.flags().iter().map(|c| format!("{}", c)).join(",")
+            ),
         )
     }
 }
@@ -246,17 +249,38 @@ impl fmt::Display for Size {
     }
 }
 
+impl fmt::Display for DeviceType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.pad_integral(
+            true,
+            "",
+            &format!(
+                "{}",
+                match self {
+                    DeviceType::FlashDrive => "Flash Drive",
+                    DeviceType::SDMMC => "SD/MMC Card",
+                    DeviceType::InternalDrive => "Internal Drive",
+                    DeviceType::ExternalDrive => "External Drive",
+                }
+            ),
+        )
+    }
+}
+
 impl fmt::Display for Reason {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                Reason::Mounted => "mounted",
-                Reason::ZeroSize => "zero-size",
-                Reason::ReadOnly => "read-only",
-                Reason::Large => "large",
-            }
+        f.pad_integral(
+            true,
+            "",
+            &format!(
+                "{}",
+                match self {
+                    Reason::Mounted => "mounted",
+                    Reason::ZeroSize => "zero-size",
+                    Reason::ReadOnly => "read-only",
+                    Reason::Large => "large",
+                }
+            ),
         )
     }
 }
@@ -280,7 +304,6 @@ mod tests {
             let dir = res.unwrap();
             let blkdev = BlockDevice::new(dir.path()).unwrap();
             let test_case = load_device_test(dir.path());
-            println!("{:?}", blkdev);
             assert_eq!(test_case.device_type, blkdev.device_type);
         }
     }
@@ -292,7 +315,7 @@ mod tests {
                 .trim()
             {
                 "FlashDrive" => DeviceType::FlashDrive,
-                "SDCard" => DeviceType::SDCard,
+                "SDCard" => DeviceType::SDMMC,
                 "InternalDrive" => DeviceType::InternalDrive,
                 "ExternalDrive" => DeviceType::ExternalDrive,
                 v => panic!("not a valid device type: {}", v),

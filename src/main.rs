@@ -11,7 +11,6 @@ extern crate simplelog;
 extern crate termion;
 
 use failure::Error;
-use itertools::Itertools;
 use simplelog::{Config, LevelFilter, TermLogger};
 use std::fs::{File, OpenOptions};
 use std::io;
