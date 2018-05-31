@@ -13,7 +13,7 @@ static PROC_MOUNTS: &'static str = "/proc/mounts";
 #[cfg(test)]
 static PROC_MOUNTS: &'static str = "src/tests/mounts";
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct BlockDevice {
     /// The sysfs block device path
     sys_path: PathBuf,
@@ -21,16 +21,34 @@ pub struct BlockDevice {
     label: String,
     /// The size in bytes of the device.
     size: Size,
+    /// The detected general type of the device.
+    device_type: DeviceType,
     /// Flags that indicate a risky device. If any are present then the device is one we don't want
     /// to write to.
     flags: Vec<Reason>,
 }
 
-#[derive(Debug)]
+/// The general type of a block device. FlashDrives and SDCards are considered safe to write to
+/// while other devices are not.
+#[derive(Debug, PartialEq)]
+pub enum DeviceType {
+    /// USB flash drives, typically devices that you will want to write OS and Live USB images to.
+    /// Note that this can include some SDCard adaptors that present themselves as SCSI devices.
+    FlashDrive,
+    /// SD/MMC Cards and card readers. Typically what you would write raspberry pi images or images
+    /// for other embedded devices. Note that some adaptors will look more like USB flash drives.
+    SDCard,
+    /// Any internal drive.
+    InternalDrive,
+    /// Any external drive that is not a good candidate for a writing OS images to, such as USB
+    /// HDDs.
+    ExternalDrive,
+}
+
+/// Additional reasons why a device might not be considered safe to write an OS image to, such as
+/// it the device is already mounted or too small for a given image.
+#[derive(Debug, PartialEq)]
 pub enum Reason {
-    /// A device that is marked as non removable and is not an SD Card (as they are always marked
-    /// as non removable).
-    NonRemovable,
     /// Indicates the device is mount or otherwise in use
     Mounted,
     /// A device that has a size of 0. This is normally SD Card readers that do not have an SD Card
@@ -45,7 +63,7 @@ pub enum Reason {
     Large,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Size(pub u64);
 
 pub struct BlockDeviceIter {
@@ -79,10 +97,13 @@ impl BlockDevice {
             .parse()
             .expect("could not parse device size");
 
+        let device_type = BlockDevice::workout_type(&sys_path)?;
+
         Ok(BlockDevice {
             sys_path,
             label: label_parts.join(" "),
             size,
+            device_type,
             flags: Vec::new(),
         })
     }
@@ -112,19 +133,37 @@ impl BlockDevice {
     pub fn size(&self) -> Size {
         self.size
     }
+
+    pub fn workout_type(blkdev_path: impl AsRef<Path>) -> Result<DeviceType, io::Error> {
+        let dev_name = blkdev_path
+            .as_ref()
+            .file_name()
+            .expect("missing file name on device")
+            .to_str()
+            .expect("none unicode char in device name");
+
+        if dev_name.starts_with("mmcblk") {
+            Ok(DeviceType::SDCard)
+        } else if dev_name.starts_with("sd") {
+            if read_to_string(blkdev_path.as_ref().join("removable"))
+                .map(|val| val.trim() == "0")
+                .expect("error reading the 'removable' file")
+            {
+                Ok(DeviceType::InternalDrive)
+            } else {
+                Ok(DeviceType::FlashDrive)
+            }
+        } else {
+            Ok(DeviceType::InternalDrive)
+        }
+    }
 }
 
 fn run_checks(blkdev: &mut BlockDevice) -> Result<(), io::Error> {
     // Is removable
-    if if_exists!(read_to_string(blkdev.sys_path().join("removable")))?
-        .map(|val| val.trim() == "0")
-        .unwrap_or(false)
-    {
-        blkdev.flags.push(Reason::NonRemovable);
-    }
 
     // Is mounted
-    if fs::read_to_string(PROC_MOUNTS)?
+    if read_to_string(PROC_MOUNTS)?
         .lines()
         .filter_map(|line| line.split_whitespace().next_tuple())
         .any(|(dev, _)| {
@@ -213,7 +252,6 @@ impl fmt::Display for Reason {
             f,
             "{}",
             match self {
-                Reason::NonRemovable => "non-removable",
                 Reason::Mounted => "mounted",
                 Reason::ZeroSize => "zero-size",
                 Reason::ReadOnly => "read-only",
@@ -228,6 +266,10 @@ mod tests {
     use super::*;
     use std::fs::read_dir;
 
+    struct DeviceTestCase {
+        device_type: DeviceType,
+    }
+
     fn sysfs() -> PathBuf {
         PathBuf::from(file!()).parent().unwrap().join("tests/sysfs")
     }
@@ -236,9 +278,25 @@ mod tests {
     fn device_checks() {
         for res in read_dir(sysfs()).unwrap() {
             let dir = res.unwrap();
-            println!("{}", dir.path().display());
             let blkdev = BlockDevice::new(dir.path()).unwrap();
+            let test_case = load_device_test(dir.path());
             println!("{:?}", blkdev);
+            assert_eq!(test_case.device_type, blkdev.device_type);
+        }
+    }
+
+    fn load_device_test(src: impl AsRef<Path>) -> DeviceTestCase {
+        DeviceTestCase {
+            device_type: match read_to_string(src.as_ref().join("scribe_type"))
+                .unwrap()
+                .trim()
+            {
+                "FlashDrive" => DeviceType::FlashDrive,
+                "SDCard" => DeviceType::SDCard,
+                "InternalDrive" => DeviceType::InternalDrive,
+                "ExternalDrive" => DeviceType::ExternalDrive,
+                v => panic!("not a valid device type: {}", v),
+            },
         }
     }
 }
