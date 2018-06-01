@@ -29,7 +29,7 @@ pub struct BlockDevice {
 
 /// The general type of a block device. FlashDrives and SDMMC are considered safe to write to
 /// while other devices are not.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub enum DeviceType {
     /// USB flash drives, typically devices that you will want to write OS and Live USB images to.
     /// Note that this can include some SDMMC adaptors that present themselves as SCSI devices.
@@ -118,6 +118,10 @@ impl BlockDevice {
         })
     }
 
+    pub fn device_type(&self) -> DeviceType {
+        self.device_type
+    }
+
     pub fn flags(&self) -> &[Reason] {
         &self.flags
     }
@@ -173,6 +177,32 @@ impl BlockDevice {
     }
 }
 
+impl DeviceType {
+    /// Returns true if the device type is considered a safe type to write OS images to.
+    pub fn is_safe(&self) -> bool {
+        match self {
+            DeviceType::FlashDrive => true,
+            DeviceType::SDMMC => true,
+            DeviceType::InternalDrive => false,
+            DeviceType::ExternalDrive => false,
+            DeviceType::CDROM => false,
+            DeviceType::LoopBack => false,
+        }
+    }
+
+    /// Returns true if the device type is to always be excluded from listings.
+    pub fn is_excluded(&self) -> bool {
+        match self {
+            DeviceType::FlashDrive => false,
+            DeviceType::SDMMC => false,
+            DeviceType::InternalDrive => false,
+            DeviceType::ExternalDrive => false,
+            DeviceType::CDROM => true,
+            DeviceType::LoopBack => true,
+        }
+    }
+}
+
 fn run_checks(blkdev: &mut BlockDevice) -> Result<(), io::Error> {
     // Is removable
 
@@ -201,12 +231,6 @@ impl Iterator for BlockDeviceIter {
         loop {
             return match self.inner.next() {
                 Some(Ok(dir)) => {
-                    // Loopback devices do not have a devices directory, but all other physical
-                    // devices that I could find do so this seems to be a way to filter them out.
-                    if !dir.path().join("device").exists() {
-                        continue;
-                    };
-
                     let mut blkdev = BlockDevice::new(dir.path());
                     if let Ok(ref mut blkdev) = blkdev {
                         if let Err(err) = run_checks(blkdev) {

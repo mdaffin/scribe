@@ -24,16 +24,23 @@ mod menus;
 
 use block_dev::block_devices;
 
+/// Returns true is the device should be included in listings
+fn include_dev(blkdev: &block_dev::BlockDevice, show_all: bool) -> bool {
+    // Filter out all excludable devices (like loopback and cd-roms) as we
+    // never want to write to them.
+    !blkdev.device_type().is_excluded()
+        && (show_all || blkdev.device_type().is_safe() && blkdev.flags().len() == 0)
+}
+
 impl WriteCmd {
     pub fn run(self) -> Result<(), Error> {
         check_tty()?;
 
         let devices = block_dev::block_devices()?
             .filter(|dev| {
-                self.show_all
-                    || dev.as_ref()
-                        .and_then(|dev| Ok(dev.flags().len() == 0))
-                        .unwrap_or(true)
+                dev.as_ref()
+                    .and_then(|dev| Ok(include_dev(dev, self.show_all)))
+                    .unwrap_or(true)
             })
             .collect::<Result<Vec<_>, io::Error>>()?;
         let selected = match menus::select_from(&devices) {
@@ -82,7 +89,7 @@ impl ListCmd {
     pub fn run(self) -> Result<(), Error> {
         for disk in block_devices()? {
             let disk = disk?;
-            if self.show_all || disk.flags().len() == 0 {
+            if include_dev(&disk, self.show_all) {
                 println!("{}", disk)
             }
         }
