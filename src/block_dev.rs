@@ -37,11 +37,22 @@ pub enum DeviceType {
     /// SD/MMC Cards and card readers. Typically what you would write raspberry pi images or images
     /// for other embedded devices. Note that some adaptors will look more like USB flash drives.
     SDMMC,
-    /// Any internal drive.
+    /// Any internal drive. There is a case for using being able to force a write to these devices
+    /// but should be hidden by default.
     InternalDrive,
     /// Any external drive that is not a good candidate for a writing OS images to, such as USB
-    /// HDDs.
+    /// HDDs. There is a case for using being able to force a write to these devices but should be
+    /// hidden by default.
+    ///
+    /// *Note* I have not yet found a way to tell these appart from InternalDrives so this is
+    /// currently unused and may be dropped in the future.
     ExternalDrive,
+    /// A cd-rom drive. These are block devices but should never be considered for possible
+    /// location to write to.
+    CDROM,
+    /// Loopback devices. These are virtual devices and should never be considered for possible
+    /// locations to write to.
+    LoopBack,
 }
 
 /// Additional reasons why a device might not be considered safe to write an OS image to, such as
@@ -152,6 +163,10 @@ impl BlockDevice {
             } else {
                 Ok(DeviceType::FlashDrive)
             }
+        } else if dev_name.starts_with("sr") {
+            Ok(DeviceType::CDROM)
+        } else if dev_name.starts_with("loop") {
+            Ok(DeviceType::LoopBack)
         } else {
             Ok(DeviceType::InternalDrive)
         }
@@ -261,6 +276,8 @@ impl fmt::Display for DeviceType {
                     DeviceType::SDMMC => "SD/MMC Card",
                     DeviceType::InternalDrive => "Internal Drive",
                     DeviceType::ExternalDrive => "External Drive",
+                    DeviceType::CDROM => "CD-ROM",
+                    DeviceType::LoopBack => "LoopBack",
                 }
             ),
         )
@@ -318,6 +335,8 @@ mod tests {
                 "SDCard" => DeviceType::SDMMC,
                 "InternalDrive" => DeviceType::InternalDrive,
                 "ExternalDrive" => DeviceType::ExternalDrive,
+                "CDROM" => DeviceType::CDROM,
+                "LoopBack" => DeviceType::LoopBack,
                 v => panic!("not a valid device type: {}", v),
             },
         }
