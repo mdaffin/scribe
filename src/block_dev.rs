@@ -204,8 +204,6 @@ impl DeviceType {
 }
 
 fn run_checks(blkdev: &mut BlockDevice) -> Result<(), io::Error> {
-    // Is removable
-
     // Is mounted
     if read_to_string(PROC_MOUNTS)?
         .lines()
