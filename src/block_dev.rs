@@ -24,7 +24,7 @@ pub struct BlockDevice {
     device_type: DeviceType,
     /// Flags that indicate a risky device. If any are present then the device is one we don't want
     /// to write to.
-    flags: Vec<Reason>,
+    flags: Vec<Flags>,
 }
 
 /// The general type of a block device. FlashDrives and SDMMC are considered safe to write to
@@ -58,7 +58,7 @@ pub enum DeviceType {
 /// Additional reasons why a device might not be considered safe to write an OS image to, such as
 /// it the device is already mounted or too small for a given image.
 #[derive(Debug, PartialEq)]
-pub enum Reason {
+pub enum Flags {
     /// Indicates the device is mount or otherwise in use
     Mounted,
     /// A device that has a size of 0. This is normally SD Card readers that do not have an SD Card
@@ -122,7 +122,7 @@ impl BlockDevice {
         self.device_type
     }
 
-    pub fn flags(&self) -> &[Reason] {
+    pub fn flags(&self) -> &[Flags] {
         &self.flags
     }
 
@@ -216,7 +216,7 @@ fn run_checks(blkdev: &mut BlockDevice) -> Result<(), io::Error> {
 
             part_name.starts_with(dev_name)
         }) {
-        blkdev.flags.push(Reason::Mounted);
+        blkdev.flags.push(Flags::Mounted);
     }
 
     Ok(())
@@ -306,7 +306,7 @@ impl fmt::Display for DeviceType {
     }
 }
 
-impl fmt::Display for Reason {
+impl fmt::Display for Flags {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.pad_integral(
             true,
@@ -314,10 +314,10 @@ impl fmt::Display for Reason {
             &format!(
                 "{}",
                 match self {
-                    Reason::Mounted => "mounted",
-                    Reason::ZeroSize => "zero-size",
-                    Reason::ReadOnly => "read-only",
-                    Reason::Large => "large",
+                    Flags::Mounted => "mounted",
+                    Flags::ZeroSize => "zero-size",
+                    Flags::ReadOnly => "read-only",
+                    Flags::Large => "large",
                 }
             ),
         )
