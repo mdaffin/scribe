@@ -219,6 +219,25 @@ fn run_checks(blkdev: &mut BlockDevice) -> Result<(), io::Error> {
         blkdev.flags.push(Flags::Mounted);
     }
 
+    // Check device size
+    if blkdev.size.0 == 0 {
+        blkdev.flags.push(Flags::ZeroSize);
+    } else if blkdev.size.0 > 35 * 1024_u64.pow(3) / 512 {
+        // We consider a device large if it is > 35GiB so 64GB flash drives are excluded but 32Gib
+        // ones are included. This is currently fairly arbitary.
+        blkdev.flags.push(Flags::Large);
+    }
+
+    // Check if device is read-only
+    if read_to_string(blkdev.sys_path().join("ro"))
+        .expect("failed to read size")
+        .trim()
+        .parse::<u8>()
+        .expect("could not parse device size") > 0
+    {
+        blkdev.flags.push(Flags::ReadOnly);
+    }
+
     Ok(())
 }
 
@@ -329,8 +348,10 @@ mod tests {
     use super::*;
     use std::fs::read_dir;
 
+    #[derive(Debug)]
     struct DeviceTestCase {
         device_type: DeviceType,
+        flags: Vec<Flags>,
     }
 
     fn sysfs() -> PathBuf {
@@ -341,9 +362,12 @@ mod tests {
     fn device_checks() {
         for res in read_dir(sysfs()).unwrap() {
             let dir = res.unwrap();
-            let blkdev = BlockDevice::new(dir.path()).unwrap();
+            println!("Running test for {}", dir.path().display());
+            let mut blkdev = BlockDevice::new(dir.path()).unwrap();
+            run_checks(&mut blkdev);
             let test_case = load_device_test(dir.path());
             assert_eq!(test_case.device_type, blkdev.device_type);
+            assert_eq!(test_case.flags, blkdev.flags);
         }
     }
 
@@ -361,6 +385,18 @@ mod tests {
                 "LoopBack" => DeviceType::LoopBack,
                 v => panic!("not a valid device type: {}", v),
             },
+            flags: read_to_string(src.as_ref().join("scribe_flags"))
+                .unwrap()
+                .lines()
+                .filter(|x| x.trim().len() > 0)
+                .map(|x| match x {
+                    "Mounted" => Flags::Mounted,
+                    "ZeroSize" => Flags::ZeroSize,
+                    "ReadOnly" => Flags::ReadOnly,
+                    "Large" => Flags::Large,
+                    v => panic!("nor a valid flag: {}", v),
+                })
+                .collect(),
         }
     }
 }
